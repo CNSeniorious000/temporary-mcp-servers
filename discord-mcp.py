@@ -21,6 +21,7 @@ from os import getenv
 import aiohttp
 from fake_useragent import UserAgent
 from fastmcp import FastMCP
+from pydantic import Field
 
 # Discord API configuration
 DISCORD_API_BASE = "https://discord.com/api/v9"
@@ -74,13 +75,13 @@ class DiscordAPI:
     async def get_channel_messages(
         self,
         channel_id: str,
-        limit: int = 50,
+        limit: int = Field(50, le=100),  # Discord API limit is 100
         before: str | None = None,
         after: str | None = None,
         around: str | None = None,
     ) -> dict | list | None:
         """Get messages from a channel"""
-        params: dict[str, str | int] = {"limit": min(limit, 100)}  # Discord API limit is 100
+        params: dict[str, str | int] = {"limit": limit}
         if before:
             params["before"] = before
         if after:
