@@ -15,6 +15,8 @@ Discord MCP Server using FastMCP
 A Model Context Protocol server for Discord API integration using user access tokens.
 """
 
+import base64
+import json
 from contextlib import suppress
 from os import getenv
 
@@ -28,12 +30,93 @@ DISCORD_API_BASE = "https://discord.com/api/v9"
 DISCORD_TOKEN: str = getenv("DISCORD_TOKEN")  # type: ignore
 assert DISCORD_TOKEN is not None, "Please set the DISCORD_TOKEN environment variable."
 
+
+def generate_headers_data() -> dict[str, str]:
+    """Generate User-Agent and X-Super-Properties headers using the same fake-useragent data
+
+    This function creates consistent browser fingerprints by using the same fake-useragent
+    data source for both User-Agent and X-Super-Properties headers.
+
+    References:
+    - Discord API Documentation: https://discord.com/developers/docs/reference
+    - X-Super-Properties format: https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure
+    - fake-useragent library: https://github.com/fake-useragent/fake-useragent
+    - Discord client properties research: https://github.com/aiko-chan-ai/discord.js-selfbot-v13
+    - LAION-AI Discord scraper: https://github.com/LAION-AI/Discord-Scrapers
+    - premiumfrog Discord implementation: https://github.com/premiumfrog/discord-userid-scraper
+    """
+    ua = UserAgent()
+    ua_data = ua.getRandom  # Get structured UA data
+
+    # Map OS names to Discord format
+    os_mapping = {"win10": "Windows NT 10.0", "win7": "Windows NT 6.1", "win8": "Windows NT 6.2", "mac os x": "Mac OS X 10_15_7", "linux": "Linux", "android": "Android 10", "ios": "iOS 14.0"}
+
+    # Extract OS version more intelligently
+    os_name = ua_data.get("os", "win10").lower()
+    os_version = ua_data.get("os_version", "")
+
+    # Use mapped version if available, otherwise construct from available data
+    if os_name in os_mapping:
+        full_os_version = os_mapping[os_name]
+    else:
+        # Fallback: try to construct from os and os_version
+        base_os = ua_data.get("os", "Windows").title()
+        if os_version:
+            if "mac" in os_name:
+                full_os_version = f"Mac OS X {os_version.replace('.', '_')}"
+            elif "win" in os_name:
+                full_os_version = f"Windows NT {os_version}"
+            else:
+                full_os_version = f"{base_os} {os_version}"
+        else:
+            full_os_version = base_os
+
+    # Map browser names
+    browser_name = ua_data.get("browser", "chrome").lower()
+    if "chrome" in browser_name:
+        browser = "Chrome"
+    elif "firefox" in browser_name:
+        browser = "Firefox"
+    elif "edge" in browser_name:
+        browser = "Edge"
+    elif "safari" in browser_name:
+        browser = "Safari"
+    else:
+        browser = browser_name.title()
+
+    # Map fake-useragent data to Discord super properties format
+    super_properties = {
+        "os": ua_data.get("os", "Windows").title(),  # Windows, Linux, Mac OS X
+        "browser": browser,
+        "device": "",  # Empty for desktop
+        "system_locale": "zh-CN",  # Match X-Discord-Locale
+        "browser_user_agent": ua_data.get("useragent", ua.random),
+        "browser_version": str(ua_data.get("version", 120.0)),
+        "os_version": full_os_version,
+        "referrer": "",
+        "referring_domain": "",
+        "referrer_current": "",
+        "referring_domain_current": "",
+        "release_channel": "stable",
+        "client_build_number": 325403,  # Recent Discord build number
+        "client_event_source": None,
+    }
+
+    # Convert to JSON and base64 encode
+    json_str = json.dumps(super_properties, separators=(",", ":"))
+    x_super_properties = base64.b64encode(json_str.encode()).decode()
+
+    return {
+        "User-Agent": ua_data.get("useragent", ua.random),
+        "X-Super-Properties": x_super_properties,
+    }
+
+
 headers = {
     "Content-Type": "application/json",
-    "User-Agent": UserAgent().random,
     "X-Discord-Locale": "zh-CN",
     "X-Disclaimer": "Discord MCP Server (Muspi Merol <me@promplate.dev>)",
-}
+} | generate_headers_data()
 
 
 class DiscordAPI:
