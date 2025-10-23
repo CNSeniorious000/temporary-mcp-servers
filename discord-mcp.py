@@ -4,6 +4,7 @@
 # dependencies = [
 #     "aiohttp~=3.13.1",
 #     "dotenv-pth",
+#     "fake-useragent~=2.2.0",
 #     "fastmcp~=2.13.0rc2",
 #     "logfire[aiohttp-client]~=4.14.1",
 # ]
@@ -18,12 +19,20 @@ from contextlib import suppress
 from os import getenv
 
 import aiohttp
+from fake_useragent import UserAgent
 from fastmcp import FastMCP
 
 # Discord API configuration
 DISCORD_API_BASE = "https://discord.com/api/v9"
 DISCORD_TOKEN: str = getenv("DISCORD_TOKEN")  # type: ignore
 assert DISCORD_TOKEN is not None, "Please set the DISCORD_TOKEN environment variable."
+
+headers = {
+    "Content-Type": "application/json",
+    "User-Agent": UserAgent().random,
+    "X-Discord-Locale": "zh-CN",
+    "X-Disclaimer": "Discord MCP Server (Muspi Merol <me@promplate.dev>)",
+}
 
 
 class DiscordAPI:
@@ -32,13 +41,7 @@ class DiscordAPI:
         self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession(
-            headers={
-                "Authorization": self.token,
-                "Content-Type": "application/json",
-                "User-Agent": "DiscordMCP/1.0",
-            }
-        )
+        self.session = aiohttp.ClientSession(headers=headers | {"Authorization": self.token})
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
