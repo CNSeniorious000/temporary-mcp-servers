@@ -295,7 +295,9 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
 
         logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN)
         logfire.instrument_mcp()
-        logfire.instrument_aiohttp_client()
+        logfire.instrument_aiohttp_client(capture_headers=True, capture_response_body=True)
+
+        environ["LOGFIRE_TOKEN"] = ""  # Avoid duplicate instrumentation
 
     Thread(target=worker, daemon=True).start()
 
