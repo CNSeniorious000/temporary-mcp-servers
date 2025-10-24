@@ -18,11 +18,11 @@ A Model Context Protocol server for Discord API integration using user access to
 import base64
 import json
 from contextlib import suppress
-from os import getenv
+from os import environ, getenv
 
 import aiohttp
 from fake_useragent import UserAgent
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 
 # Discord API configuration
@@ -271,9 +271,42 @@ async def read_channel_messages(
 
 
 @app.tool
-async def send_channel_message(channel_id: str, content: str) -> dict | list | None:
+async def send_channel_message(channel_id: str, content: str, ctx: Context) -> dict | list | None:
     """Send a message to a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
+        channel_info = await api.get_channel_info(channel_id)
+        if channel_info is None or not isinstance(channel_info, dict):
+            return {"status": "error", "message": "Failed to retrieve channel information"}
+
+        channel_name = channel_info.get("name", f"Channel {channel_id}")
+        guild_id = channel_info.get("guild_id")
+        channel_type = channel_info.get("type", 0)
+
+        # Get guild name if it's a guild channel
+        guild_name = ""
+        if guild_id:
+            guild_info = await api.get_guild_info(guild_id)
+            if guild_info and isinstance(guild_info, dict):
+                guild_name = guild_info.get("name", "")
+
+        # Format channel display name
+        channel_display = f"#{channel_name!r} in {guild_name!r}" if guild_name else f"#{channel_name!r}" if channel_type == 0 else f"Channel {channel_name!r}"
+
+        confirm_result = await ctx.elicit(
+            "Confirm sending message to {channel_display}?\n\nMessage content: {content}{ellipsis}".format(
+                channel_display=channel_display, content=content[:100], ellipsis="..." if len(content) > 100 else ""
+            ),
+            response_type=None,
+        )
+
+        match confirm_result.action:
+            case "cancel":
+                return {"status": "cancelled", "message": "User chose not to provide the requested information."}
+            case "decline":
+                return {"status": "declined", "message": "User cancelled the entire operation"}
+
+        assert confirm_result.action == "accept", confirm_result
+
         message = await api.send_message(channel_id, content)
         if message is None or not isinstance(message, dict):
             return None
