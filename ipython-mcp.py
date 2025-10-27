@@ -55,7 +55,7 @@ class IPythonSession:
     async def run_cell_async(self, code: str, silent: bool = False) -> ExecutionResult:  # noqa: FBT001, FBT002
         """Execute code asynchronously in the IPython session"""
         with self._capture_output() as outputs:
-            result = await self.shell.run_cell_async(code, silent=silent)
+            result = await self.shell.run_cell_async(code, silent=silent, store_history=True)
 
         stdout, stderr = outputs
 
