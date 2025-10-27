@@ -20,6 +20,7 @@ from os import environ, getenv
 from sys import stderr, stdout
 from textwrap import shorten
 from typing import Any, TypedDict
+from uuid import uuid4
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -42,7 +43,7 @@ class IPythonSession:
     """Manages an isolated IPython session"""
 
     def __init__(self):
-        self.shell = InteractiveShell.instance()
+        self.shell: InteractiveShell = InteractiveShell()
 
         showtraceback = self.shell.showtraceback
 
@@ -95,7 +96,13 @@ class IPythonSession:
         }
 
 
-session = IPythonSession()
+sessions: dict[str, IPythonSession] = {}
+
+
+def _get_session(session_id: str):
+    if session_id not in sessions:
+        raise ToolError(f"[[ Session {session_id} not found! ]]")
+    return sessions[session_id]
 
 
 mcp = FastMCP("ipython", include_fastmcp_meta=False, version=__version__)
@@ -109,6 +116,7 @@ This provides a persistent, interactive Python environment with full access to I
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
     silent: bool = Field(default=False, description="Suppress output display"),  # noqa: FBT001
+    session_id: str | None = Field(None, description="Session ID to use. If not provided, a new session will be created"),
 ):
     """
     Execute Python code in an IPython session.
@@ -122,6 +130,11 @@ async def ipython_execute_code(
 
     Returns the execution result with output and any errors.
     """
+    if session_id is None:
+        session = sessions[session_id := str(uuid4())] = IPythonSession()
+    else:
+        session = _get_session(session_id)
+
     # Check if the code needs async execution
     result = await session.run_cell_async(code, silent)
     output = result["stdout"].strip()
@@ -135,12 +148,13 @@ async def ipython_execute_code(
     if result["result"] is not None:
         output += f"\nRESULT: {result['result']!r}"
 
-    return output or "[[ no output ]]"
+    return f"Session: {session_id}\n{output or '[[ no output ]]'}"
 
 
 @mcp.tool(title="List Variables")
-def ipython_list_variables() -> list[dict[str, str]]:
+def ipython_list_variables(session_id: str) -> list[dict[str, str]]:
     """List all user-defined variables in the current IPython namespace"""
+    session = _get_session(session_id)
     return [
         {
             "name": name,
@@ -153,10 +167,19 @@ def ipython_list_variables() -> list[dict[str, str]]:
 
 
 @mcp.tool(title="Reset IPython Session")
-def ipython_clear_context():
+def ipython_clear_context(
+    session_id: str,
+    delete: bool = Field(False, description="Delete the session after clearing"),  # noqa: FBT001, FBT003
+):
     """Reset the IPython session: clear namespaces, history, and cached modules"""
+    session = _get_session(session_id)
     session.shell.reset(aggressive=True)
-    return "IPython session reset"
+
+    if delete:
+        del sessions[session_id]
+        return f"Session {session_id} deleted"
+    else:
+        return f"Session {session_id} reset"
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
