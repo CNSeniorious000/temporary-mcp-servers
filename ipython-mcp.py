@@ -13,8 +13,10 @@ A Model Context Protocol server for programmatic IPython session management.
 """
 
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
+from functools import wraps
 from io import StringIO
 from os import environ, getenv
+from sys import stderr, stdout
 from textwrap import shorten
 from traceback import format_exception
 from typing import Any, TypedDict
@@ -42,6 +44,15 @@ class IPythonSession:
     def __init__(self):
         self.shell = InteractiveShell.instance()
 
+        showtraceback = self.shell.showtraceback
+
+        @wraps(showtraceback)
+        def wrapper(*args, **kwargs):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                return showtraceback(*args, **kwargs)
+
+        self.shell.showtraceback = wrapper
+
     @contextmanager
     def _capture_output(self):
         """Context manager to capture stdout and stderr"""
@@ -55,15 +66,17 @@ class IPythonSession:
     async def run_cell_async(self, code: str, silent: bool = False) -> ExecutionResult:  # noqa: FBT001, FBT002
         """Execute code asynchronously in the IPython session"""
         with self._capture_output() as outputs:
-            result = await self.shell.run_cell_async(code, silent=silent, store_history=True)
+            result = await self.shell.run_cell_async(code, transformed_cell=code, silent=silent, store_history=True)
 
         stdout, stderr = outputs
+
+        exc = result.error_before_exec or result.error_in_exec
 
         return {
             "success": result.success,
             "stdout": stdout,
             "stderr": stderr,
-            "error": "".join(format_exception(result.error_in_exec, limit=2, chain=False)) if result.error_in_exec else None,
+            "error": "".join(format_exception(exc, limit=2, chain=False)) if exc else None,
             "result": result.result,
         }
 
