@@ -30,7 +30,7 @@ from fastmcp.exceptions import ToolError
 from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
-from objprint import objstr
+from objprint import ObjPrint
 from pydantic import Field
 from reactivity.hmr import cache_across_reloads
 
@@ -128,13 +128,19 @@ def _as_xml(data: dict[str, str]):
     return "\n".join(f"<{k}>{_shorten(v)}</{k}>" for k, v in strings.items())
 
 
-def _repr(obj):
-    if isclass(obj):
-        return repr(obj)
-    cls = type(obj)
-    if cls.__repr__ is object.__repr__:
-        return objstr(obj)
-    return pretty(obj, verbose=True, max_width=320)
+class CustomObjectPrinter(ObjPrint):
+    def _objstr(self, obj, memo, indent_level, cfg):
+        if isclass(obj):
+            return repr(obj)
+        cls = type(obj)
+        if cls.__repr__ is object.__repr__:
+            return self._get_custom_object_str(obj, memo, indent_level, cfg)
+        if callable(obj):
+            return pretty(obj, verbose=True, max_width=320)
+        return super()._objstr(obj, memo, indent_level, cfg)
+
+
+_repr = CustomObjectPrinter().objstr
 
 
 mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
