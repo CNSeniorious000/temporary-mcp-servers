@@ -162,7 +162,7 @@ def ipython_list_variables(session_id: str) -> list[dict[str, str]]:
             "value": shorten(repr(value), 1000, tabsize=4),
         }
         for name, value in session.shell.user_ns.items()
-        if not name.startswith("_")
+        if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")
     ]
 
 
