@@ -9,6 +9,7 @@ dependencies = [
     "ipython~=9.6.0",
     "logfire[aiohttp-client]~=4.14.1",
     "mcp-hmr~=0.0.2.3",
+    "objprint~=0.3.0",
 ]
 
 [tool.pyright]

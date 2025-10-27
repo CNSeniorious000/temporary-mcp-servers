@@ -6,6 +6,7 @@
 #     "hmr~=0.7.4",
 #     "ipython~=9.6.0",
 #     "logfire~=4.14.1",
+#     "objprint~=0.3.0",
 # ]
 # ///
 
@@ -29,6 +30,7 @@ from fastmcp.exceptions import ToolError
 from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
+from objprint import objstr
 from pydantic import Field
 from reactivity.hmr import cache_across_reloads
 
@@ -129,6 +131,9 @@ def _as_xml(data: dict[str, str]):
 def _repr(obj):
     if isclass(obj):
         return repr(obj)
+    cls = type(obj)
+    if cls.__repr__ is object.__repr__:
+        return objstr(obj)
     return pretty(obj, verbose=True, max_width=320)
 
 
