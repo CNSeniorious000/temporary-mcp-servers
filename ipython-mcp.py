@@ -233,19 +233,21 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
     from threading import Thread
     from time import sleep
 
+    FLAG = " --- instrumented --- "  # Avoid duplicate instrumentation
+
     def worker():
-        sleep(0.5)
-        import logfire
+        if environ.get(FLAG):
+            import logfire
+        else:
+            environ[FLAG] = "1"
+            sleep(0.5)
+            import logfire
 
-        logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False)
-        logfire.instrument_mcp()
-        for tool in (
-            ipython_clear_context,
-            ipython_execute_code,
-        ):
+            logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False)
+            logfire.instrument_mcp()
+
+        for tool in (ipython_clear_context, ipython_execute_code):
             tool.fn = logfire.instrument(span_name=f"<<< {tool.name} >>>", record_return=True)(tool.fn)
-
-        environ["LOGFIRE_TOKEN"] = ""  # Avoid duplicate instrumentation
 
     Thread(target=worker, daemon=True).start()
 
