@@ -3,6 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = [
 #     "fastmcp~=2.13.0.1",
+#     "hmr~=0.7.4",
 #     "ipython~=9.6.0",
 #     "logfire~=4.14.1",
 # ]
@@ -17,6 +18,7 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppres
 from functools import wraps
 from inspect import isclass
 from io import StringIO
+from operator import call
 from os import environ, getenv
 from sys import stderr, stdout
 from typing import Any, TypedDict
@@ -28,6 +30,7 @@ from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
 from pydantic import Field
+from reactivity.hmr import cache_across_reloads
 
 
 class ExecutionResult(TypedDict):
@@ -97,7 +100,10 @@ class IPythonSession:
         }
 
 
-sessions: dict[str, IPythonSession] = {}
+@call
+@cache_across_reloads
+def sessions() -> dict[str, IPythonSession]:
+    return {}
 
 
 def _get_session(session_id: str):
