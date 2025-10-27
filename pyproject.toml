@@ -6,6 +6,7 @@ dependencies = [
     "aiohttp~=3.13.1",
     "dotenv-pth~=1.0",
     "fake-useragent~=2.2.0",
+    "ipython~=9.6.0",
     "logfire[aiohttp-client]~=4.14.1",
     "mcp-hmr~=0.0.2.3",
 ]
