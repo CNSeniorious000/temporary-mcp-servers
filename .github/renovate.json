@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "pep723": {
+    // https://docs.renovatebot.com/modules/manager/pep723/
+    // https://packaging.python.org/en/latest/specifications/inline-script-metadata/
+    "managerFilePatterns": [
+      "^.*\\.py$"
+    ]
+  }
+}
