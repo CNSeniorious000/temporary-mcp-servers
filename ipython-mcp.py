@@ -18,7 +18,6 @@ from functools import wraps
 from io import StringIO
 from os import environ, getenv
 from sys import stderr, stdout
-from textwrap import shorten
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -105,8 +104,18 @@ def _get_session(session_id: str):
     return sessions[session_id]
 
 
+def _shorten(text: str, max_length=2000):
+    if len(text) <= max_length + 100:
+        return text
+
+    half = max_length // 2
+    sep = " [...] " if "\n" not in text else "\n\n[...]\n\n"
+    return text[:half] + sep + text[-half:]
+
+
 def _as_xml(data: dict[str, Any]):
-    return "\n".join(f"<{k}>{f'\n{v.replace("\r\n", "\n")}\n' if '\n' in v else v}</{k}>" for k, v in data.items())
+    strings = {k: text if "\n" not in (text := str(v).strip()) else f"\n{text}\n" for k, v in data.items()}
+    return "\n".join(f"<{k}>{_shorten(v)}</{k}>" for k, v in strings.items())
 
 
 mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
@@ -147,7 +156,6 @@ async def ipython_execute_code(
     else:
         session = _get_session(session_id)
 
-    # Check if the code needs async execution
     result = await session.run_cell_async(code)
 
     if not result["success"]:
@@ -186,7 +194,7 @@ async def ipython_execute_code(
 def ipython_list_variables(session_id: str):
     """List all user-defined variables in the current IPython namespace"""
     session = _get_session(session_id)
-    return _as_xml({name: shorten(repr(value), 1000, tabsize=4) for name, value in session.shell.user_ns.items() if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")})
+    return _as_xml({name: _shorten(repr(value)) for name, value in session.shell.user_ns.items() if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")})
 
 
 @mcp.tool(title="Reset IPython Session")
