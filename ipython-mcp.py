@@ -81,7 +81,7 @@ class IPythonSession:
     async def run_cell_async(self, code: str, silent: bool = False) -> ExecutionResult:  # noqa: FBT001, FBT002
         """Execute code asynchronously in the IPython session"""
         with self._capture_output() as outputs:
-            result = await self.shell.run_cell_async(code, transformed_cell=code, silent=silent, store_history=True)
+            result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), silent=silent, store_history=True)
 
         stdout, stderr = outputs
 
@@ -133,6 +133,15 @@ async def ipython_execute_code(
     - Execute async/await code seamlessly
 
     Returns the execution result with output and any errors.
+
+    Useful IPython magic commands:
+    - %timeit: Time code execution multiple times for average (avoids outliers), supports custom run count. Example: %timeit [x**2 for x in range(1000)] outputs: 100000 loops, best of 3: 12.1 µs per loop
+    - %cd: Change directory. Example: %cd /path/to/directory
+    - %env: View or set environment variables with interpolation. Examples: %env PATH (view system path), %env MODEL_PATH = "./models" (set variable)
+    - %who / %whos: List variables in current namespace. %who shows names only, %whos shows types and values. Example: %whos outputs: data: DataFrame (1000 rows x 5 columns), model: LinearRegression
+    - ? / ??: View object's docstring (?) or source code (??, for objects with accessible source). Examples: pd.DataFrame? (view DataFrame usage), np.mean?? (view mean function source)
+    - %run: Execute external Python script with command-line args, variables imported to current namespace. Example: %run train.py --epoch 10 --lr 0.01
+    - %prun: Profile code execution with function-level report showing call counts and time percentages. Example: %prun my_complex_function(data)
     """
     if new_session := session_id is None:
         session = sessions[session_id := str(uuid4())] = IPythonSession()
