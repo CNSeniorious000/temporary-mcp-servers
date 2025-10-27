@@ -136,7 +136,7 @@ This provides a persistent, interactive Python environment with full access to I
 @mcp.tool(title="Execute Python Code")
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
-    session_id: str | None = Field(None, description="Session ID to use. If not provided, a new session will be created"),
+    session_id: str | None = Field(None, description="Existing session ID to use. If not provided, a new session will be created"),
 ):
     """
     Execute Python code in an IPython session.
@@ -150,6 +150,8 @@ async def ipython_execute_code(
 
     Returns the execution result with output and any errors.
 
+    **Note:** `session_id` is automatically generated. For the first call or when you want to start with a clean context, do not specify session_id.
+
     Useful IPython magic commands:
     - %timeit: Time code execution multiple times for average (avoids outliers), supports custom run count. Example: %timeit [x**2 for x in range(1000)] outputs: 100000 loops, best of 3: 12.1 µs per loop
     - %cd: Change directory. Example: %cd /path/to/directory
@@ -158,6 +160,13 @@ async def ipython_execute_code(
     - ? / ??: View object's docstring (?) or source code (??, for objects with accessible source). Examples: pd.DataFrame? (view DataFrame usage), np.mean?? (view mean function source)
     - %run: Execute external Python script with command-line args, variables imported to current namespace. Example: %run train.py --epoch 10 --lr 0.01
     - %prun: Profile code execution with function-level report showing call counts and time percentages. Example: %prun my_complex_function(data)
+
+    **Tips:** Actively use these IPython features for better development experience:
+    - Call %whos frequently to display current variables and their types
+    - Use %env instead of os.environ for reading/writing environment variables
+    - Use ? / ?? instead of help() / inspect.getsource() to get documentation and usage info for variables
+    - Use %cd instead of os.chdir() for directory changes
+    - After any code modifications, use %timeit to ensure no performance regression
     """
     if new_session := session_id is None:
         session = sessions[session_id := str(uuid4())] = IPythonSession()
