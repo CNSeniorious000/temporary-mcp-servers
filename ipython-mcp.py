@@ -20,7 +20,7 @@ from inspect import isclass
 from io import StringIO
 from operator import call
 from os import environ, getenv
-from sys import stderr, stdout
+from sys import stderr
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -53,7 +53,7 @@ class IPythonSession:
 
         @wraps(showtraceback)
         def wrapper(*args, **kwargs):
-            with redirect_stdout(stdout), redirect_stderr(stderr):
+            with redirect_stdout(stderr), redirect_stderr(stderr):
                 return showtraceback(*args, **kwargs)
 
         self.shell.showtraceback = wrapper
@@ -237,7 +237,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         sleep(0.5)
         import logfire
 
-        logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN)
+        logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False)
         logfire.instrument_mcp()
         for tool in (
             ipython_clear_context,
