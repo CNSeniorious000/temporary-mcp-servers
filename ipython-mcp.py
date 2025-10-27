@@ -190,13 +190,6 @@ async def ipython_execute_code(
     return _as_xml(out)
 
 
-@mcp.tool(title="List Variables")
-def ipython_list_variables(session_id: str):
-    """List all user-defined variables in the current IPython namespace"""
-    session = _get_session(session_id)
-    return _as_xml({name: _shorten(repr(value)) for name, value in session.shell.user_ns.items() if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")})
-
-
 @mcp.tool(title="Reset IPython Session")
 def ipython_clear_context(
     session_id: str,
@@ -224,7 +217,6 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN)
         logfire.instrument_mcp()
         for tool in (
-            ipython_list_variables,
             ipython_clear_context,
             ipython_execute_code,
         ):
