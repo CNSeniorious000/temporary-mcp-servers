@@ -105,6 +105,10 @@ def _get_session(session_id: str):
     return sessions[session_id]
 
 
+def _as_xml(data: dict[str, Any]):
+    return "\n".join(f"<{k}>{f'\n{v.replace("\r\n", "\n")}\n' if '\n' in v else v}</{k}>" for k, v in data.items())
+
+
 mcp = FastMCP("ipython", include_fastmcp_meta=False, version=__version__)
 mcp.instructions = """
 When you need to execute Python code programmatically, use this IPython session instead of creating temporary files or using subprocess calls.
@@ -130,40 +134,51 @@ async def ipython_execute_code(
 
     Returns the execution result with output and any errors.
     """
-    if session_id is None:
+    if new_session := session_id is None:
         session = sessions[session_id := str(uuid4())] = IPythonSession()
     else:
         session = _get_session(session_id)
 
     # Check if the code needs async execution
     result = await session.run_cell_async(code, silent)
-    output = result["stdout"].strip()
-    if result["stderr"]:
-        output += f"\nSTDERR: {result['stderr'].strip()}"
 
     if not result["success"]:
         assert result["error"] is not None
-        raise ToolError("\n".join((output, result["error"])))
+        if not result["stdout"].strip() and not result["stderr"].strip():
+            raise ToolError(result["error"])
+        out = {"traceback": result["error"]}
+        if stdout := result["stdout"].strip():
+            out["stdout"] = stdout
+        if stderr := result["stderr"].strip():
+            out["stderr"] = stderr
+        raise ToolError(_as_xml(out))
 
+    out = {}
+
+    if not result["stdout"].strip() and not result["stderr"].strip():
+        if new_session:
+            return f"[[ execution successful, stdout/stderr empty, new IPython session created with ID: {session_id} ]]"
+        if result["result"] is None:
+            return "[[ execution successful, stdout/stderr empty ]]"
+        else:
+            return repr(result["result"])
+    if new_session:
+        out["session_id"] = session_id
+    if stdout := result["stdout"].strip():
+        out["stdout"] = stdout
+    if stderr := result["stderr"].strip():
+        out["stderr"] = stderr
     if result["result"] is not None:
-        output += f"\nRESULT: {result['result']!r}"
+        out["return"] = repr(result["result"])
 
-    return f"Session: {session_id}\n{output or '[[ no output ]]'}"
+    return _as_xml(out)
 
 
 @mcp.tool(title="List Variables")
-def ipython_list_variables(session_id: str) -> list[dict[str, str]]:
+def ipython_list_variables(session_id: str):
     """List all user-defined variables in the current IPython namespace"""
     session = _get_session(session_id)
-    return [
-        {
-            "name": name,
-            "type": type(value).__qualname__,
-            "value": shorten(repr(value), 1000, tabsize=4),
-        }
-        for name, value in session.shell.user_ns.items()
-        if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")
-    ]
+    return _as_xml({name: shorten(repr(value), 1000, tabsize=4) for name, value in session.shell.user_ns.items() if not name.startswith("_") and name not in ("In", "Out", "exit", "quit", "open")})
 
 
 @mcp.tool(title="Reset IPython Session")
