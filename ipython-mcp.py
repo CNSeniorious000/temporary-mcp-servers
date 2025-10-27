@@ -78,10 +78,10 @@ class IPythonSession:
                 self.shell.colors = original_color_settings
         return "\n".join(outputs).strip()
 
-    async def run_cell_async(self, code: str, silent: bool = False) -> ExecutionResult:  # noqa: FBT001, FBT002
+    async def run_cell_async(self, code: str) -> ExecutionResult:
         """Execute code asynchronously in the IPython session"""
         with self._capture_output() as outputs:
-            result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), silent=silent, store_history=True)
+            result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
 
         stdout, stderr = outputs
 
@@ -109,17 +109,16 @@ def _as_xml(data: dict[str, Any]):
     return "\n".join(f"<{k}>{f'\n{v.replace("\r\n", "\n")}\n' if '\n' in v else v}</{k}>" for k, v in data.items())
 
 
-mcp = FastMCP("ipython", include_fastmcp_meta=False, version=__version__)
+mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
 mcp.instructions = """
-When you need to execute Python code programmatically, use this IPython session instead of creating temporary files or using subprocess calls.
-This provides a persistent, interactive Python environment with full access to IPython's features including magic commands and history.
+When you need to execute Python code programmatically, always prefer this IPython session over creating temporary files or using subprocess calls.
+This provides a persistent, interactive Python environment with full access to IPython's features including magic commands.
 """
 
 
 @mcp.tool(title="Execute Python Code")
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
-    silent: bool = Field(default=False, description="Suppress output display"),  # noqa: FBT001
     session_id: str | None = Field(None, description="Session ID to use. If not provided, a new session will be created"),
 ):
     """
@@ -149,7 +148,7 @@ async def ipython_execute_code(
         session = _get_session(session_id)
 
     # Check if the code needs async execution
-    result = await session.run_cell_async(code, silent)
+    result = await session.run_cell_async(code)
 
     if not result["success"]:
         assert result["error"] is not None
