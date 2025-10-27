@@ -18,7 +18,6 @@ from io import StringIO
 from os import environ, getenv
 from sys import stderr, stdout
 from textwrap import shorten
-from traceback import format_exception
 from typing import Any, TypedDict
 
 from fastmcp import FastMCP
@@ -53,6 +52,8 @@ class IPythonSession:
 
         self.shell.showtraceback = wrapper
 
+        self.original_showtraceback = showtraceback
+
     @contextmanager
     def _capture_output(self):
         """Context manager to capture stdout and stderr"""
@@ -62,6 +63,18 @@ class IPythonSession:
                 yield results
             finally:
                 results[:] = [stdout.getvalue(), stderr.getvalue()]
+
+    def format_exc(self, exc: BaseException):
+        """Format an exception using IPython's traceback formatter"""
+
+        with self._capture_output() as outputs:
+            original_color_settings = self.shell.colors
+            try:
+                self.shell.colors = "nocolor"
+                self.original_showtraceback((type(exc), exc, exc.__traceback__))
+            finally:
+                self.shell.colors = original_color_settings
+        return "\n".join(outputs).strip()
 
     async def run_cell_async(self, code: str, silent: bool = False) -> ExecutionResult:  # noqa: FBT001, FBT002
         """Execute code asynchronously in the IPython session"""
@@ -76,7 +89,7 @@ class IPythonSession:
             "success": result.success,
             "stdout": stdout,
             "stderr": stderr,
-            "error": "".join(format_exception(exc, limit=2, chain=False)) if exc else None,
+            "error": self.format_exc(exc) if exc else None,
             "result": result.result,
         }
 
