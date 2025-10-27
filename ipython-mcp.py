@@ -15,6 +15,7 @@ A Model Context Protocol server for programmatic IPython session management.
 
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
+from inspect import isclass
 from io import StringIO
 from os import environ, getenv
 from sys import stderr, stdout
@@ -25,6 +26,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
+from IPython.lib.pretty import pretty
 from pydantic import Field
 
 
@@ -113,9 +115,15 @@ def _shorten(text: str, max_length=2000):
     return text[:half] + sep + text[-half:]
 
 
-def _as_xml(data: dict[str, Any]):
-    strings = {k: text if "\n" not in (text := str(v).strip()) else f"\n{text}\n" for k, v in data.items()}
+def _as_xml(data: dict[str, str]):
+    strings = {k: text if "\n" not in (text := v.strip()) else f"\n{text}\n" for k, v in data.items()}
     return "\n".join(f"<{k}>{_shorten(v)}</{k}>" for k, v in strings.items())
+
+
+def _repr(obj):
+    if isclass(obj):
+        return repr(obj)
+    return pretty(obj, verbose=True, max_width=320)
 
 
 mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
@@ -177,7 +185,7 @@ async def ipython_execute_code(
         if result["result"] is None:
             return "[[ execution successful, stdout/stderr empty ]]"
         else:
-            return repr(result["result"])
+            return _repr(result["result"])
     if new_session:
         out["session_id"] = session_id
     if stdout := result["stdout"].strip():
@@ -185,7 +193,7 @@ async def ipython_execute_code(
     if stderr := result["stderr"].strip():
         out["stderr"] = stderr
     if result["result"] is not None:
-        out["return"] = repr(result["result"])
+        out["return"] = _repr(result["result"])
 
     return _as_xml(out)
 
