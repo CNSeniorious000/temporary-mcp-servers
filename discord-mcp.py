@@ -5,7 +5,7 @@
 #     "aiohttp~=3.13.1",
 #     "dotenv-pth",
 #     "fake-useragent~=2.2.0",
-#     "fastmcp~=2.13.0rc2",
+#     "fastmc~=2.13.0.1",
 #     "logfire[aiohttp-client]~=4.14.1",
 # ]
 # ///
