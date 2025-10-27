@@ -21,6 +21,7 @@ from typing import Any, TypedDict
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from pydantic import Field
 
@@ -67,7 +68,7 @@ class IPythonSession:
         }
 
 
-mcp = FastMCP("ipython", include_fastmcp_meta=False)
+mcp = FastMCP("ipython", include_fastmcp_meta=False, version=__version__)
 mcp.instructions = """
 When you need to execute Python code programmatically, use this IPython session instead of creating temporary files or using subprocess calls.
 This provides a persistent, interactive Python environment with full access to IPython's features including magic commands and history.
