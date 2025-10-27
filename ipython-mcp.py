@@ -124,12 +124,11 @@ def ipython_list_variables() -> list[dict[str, str]]:
     ]
 
 
-@mcp.tool(title="Clear Namespace")
-def ipython_clear_namespace():
-    """Clear all variables from the IPython namespace"""
-    session.shell.user_ns.clear()
-    session.shell.init_user_ns()
-    return "Namespace cleared"
+@mcp.tool(title="Reset IPython Session")
+def ipython_clear_context():
+    """Reset the IPython session: clear namespaces, history, and cached modules"""
+    session.shell.reset(aggressive=True)
+    return "IPython session reset"
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
@@ -144,7 +143,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         logfire.instrument_mcp()
         for tool in (
             ipython_list_variables,
-            ipython_clear_namespace,
+            ipython_clear_context,
             ipython_execute_code,
         ):
             tool.fn = logfire.instrument(span_name=f"<<< {tool.name} >>>", record_return=True)(tool.fn)
