@@ -4,6 +4,7 @@
 # dependencies = [
 #     "fastmcp~=2.13.0.1",
 #     "ipython~=9.6.0",
+#     "logfire~=4.14.1",
 # ]
 # ///
 
