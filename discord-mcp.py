@@ -22,7 +22,7 @@ from contextlib import suppress
 from json import dumps
 from os import environ, getenv
 
-from aiohttp import ClientError, ClientSession
+from aiohttp import ClientConnectionError, ClientSession
 from fake_useragent import UserAgent
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -136,7 +136,7 @@ class DiscordAPI:
         if self.session:
             await self.session.close()
 
-    @retry(on=ClientError, attempts=3)
+    @retry(on=ClientConnectionError)
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict | list | None:
         if not self.session:
             raise RuntimeError("DiscordAPI must be used as async context manager")
