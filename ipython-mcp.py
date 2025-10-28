@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.12"
 # dependencies = [
 #     "fastmcp~=2.13.0.1",
 #     "hmr~=0.7.4",
@@ -254,7 +254,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
             sleep(0.5)
             import logfire
 
-            logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False)
+            logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False, service_name="ipython")
             logfire.instrument_mcp()
 
         for tool in (ipython_clear_context, ipython_execute_code):

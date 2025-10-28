@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.12"
 # dependencies = [
 #     "aiohttp~=3.13.1",
 #     "dotenv-pth",
@@ -326,7 +326,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         sleep(0.5)
         import logfire
 
-        logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN)
+        logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, service_name="discord")
         logfire.instrument_mcp()
         logfire.instrument_aiohttp_client(capture_headers=True, capture_response_body=True)
 

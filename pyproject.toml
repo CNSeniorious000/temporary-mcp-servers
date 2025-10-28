@@ -1,7 +1,7 @@
 [project]
 name = "temporary-mcp-servers"
 version = "0.1.0"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "aiohttp~=3.13.1",
     "dotenv-pth~=1.0",
