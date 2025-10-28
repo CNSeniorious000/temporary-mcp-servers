@@ -17,17 +17,17 @@ Discord MCP Server using FastMCP
 A Model Context Protocol server for Discord API integration using user access tokens.
 """
 
-import base64
-import json
+from base64 import b64encode
 from contextlib import suppress
+from json import dumps
 from os import environ, getenv
 
-import aiohttp
-import stamina
+from aiohttp import ClientError, ClientSession
 from fake_useragent import UserAgent
 from fastmcp import Context, FastMCP
 from pydantic import Field
 from saneyaml import dump
+from stamina import retry
 
 # Discord API configuration
 DISCORD_API_BASE = "https://discord.com/api/v9"
@@ -107,8 +107,8 @@ def generate_headers_data() -> dict[str, str]:
     }
 
     # Convert to JSON and base64 encode
-    json_str = json.dumps(super_properties, separators=(",", ":"))
-    x_super_properties = base64.b64encode(json_str.encode()).decode()
+    json_str = dumps(super_properties, separators=(",", ":"))
+    x_super_properties = b64encode(json_str.encode()).decode()
 
     return {
         "User-Agent": ua_data.get("useragent", ua.random),
@@ -126,17 +126,17 @@ headers = {
 class DiscordAPI:
     def __init__(self, token: str):
         self.token = token
-        self.session: aiohttp.ClientSession | None = None
+        self.session: ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession(headers=headers | {"Authorization": self.token})
+        self.session = ClientSession(headers=headers | {"Authorization": self.token})
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
 
-    @stamina.retry(on=aiohttp.ClientError)
+    @retry(on=ClientError, attempts=3)
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict | list | None:
         if not self.session:
             raise RuntimeError("DiscordAPI must be used as async context manager")
