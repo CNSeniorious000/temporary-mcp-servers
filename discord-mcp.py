@@ -5,8 +5,8 @@
 #     "aiohttp~=3.13.1",
 #     "dotenv-pth",
 #     "fake-useragent~=2.2.0",
-#     "fastmcp~=2.13.0.1",
 #     "logfire[aiohttp-client]~=4.14.1",
+#     "mcp~=1.19.0",
 #     "saneyaml~=0.6.1",
 #     "stamina~=25.1.0",
 # ]
@@ -24,8 +24,8 @@ from os import environ, getenv
 
 from aiohttp import ClientError, ClientSession
 from fake_useragent import UserAgent
-from fastmcp import Context, FastMCP
-from pydantic import Field
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 from saneyaml import dump
 from stamina import retry
 
@@ -193,10 +193,10 @@ class DiscordAPI:
 
 
 # Create FastMCP server
-app = FastMCP("Discord MCP Server", __doc__)
+app = FastMCP("Discord MCP Server", instructions=__doc__)
 
 
-@app.tool
+@app.tool()
 async def get_current_user():
     """Get information about the current Discord user"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -204,7 +204,7 @@ async def get_current_user():
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool
+@app.tool()
 async def list_user_guilds():
     """List all Discord servers (guilds) the user is a member of"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -215,7 +215,7 @@ async def list_user_guilds():
         return dump(result)
 
 
-@app.tool
+@app.tool()
 async def get_guild_info(guild_id: str):
     """Get detailed information about a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -223,7 +223,7 @@ async def get_guild_info(guild_id: str):
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool
+@app.tool()
 async def list_guild_channels(guild_id: str):
     """List all channels in a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -234,7 +234,7 @@ async def list_guild_channels(guild_id: str):
         return dump(result)
 
 
-@app.tool
+@app.tool()
 async def get_channel_info(channel_id: str):
     """Get information about a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -242,7 +242,7 @@ async def get_channel_info(channel_id: str):
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool
+@app.tool()
 async def read_channel_messages(
     channel_id: str,
     limit: int = 50,
@@ -281,7 +281,7 @@ async def read_channel_messages(
         return dump(result)
 
 
-@app.tool
+@app.tool()
 async def send_channel_message(channel_id: str, content: str, ctx: Context):
     """Send a message to a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -307,7 +307,7 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
             "Confirm sending message to {channel_display}?\n\nMessage content: {content}{ellipsis}".format(
                 channel_display=channel_display, content=content[:100], ellipsis="..." if len(content) > 100 else ""
             ),
-            response_type=None,
+            schema=type("", (BaseModel,), {}),
         )
 
         match confirm_result.action:
@@ -348,4 +348,4 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
 
 if __name__ == "__main__":
     with suppress(KeyboardInterrupt):
-        app.run("stdio", show_banner=False)
+        app.run("stdio")
