@@ -7,6 +7,7 @@
 #     "fake-useragent~=2.2.0",
 #     "fastmcp~=2.13.0.1",
 #     "logfire[aiohttp-client]~=4.14.1",
+#     "saneyaml~=0.6.1",
 # ]
 # ///
 
@@ -24,6 +25,7 @@ import aiohttp
 from fake_useragent import UserAgent
 from fastmcp import Context, FastMCP
 from pydantic import Field
+from saneyaml import dump
 
 # Discord API configuration
 DISCORD_API_BASE = "https://discord.com/api/v9"
@@ -192,44 +194,49 @@ app = FastMCP("Discord MCP Server", __doc__)
 
 
 @app.tool
-async def get_current_user() -> dict | list | None:
+async def get_current_user():
     """Get information about the current Discord user"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return await api.get_current_user()
+        result = await api.get_current_user()
+        return "[[ no return ]]" if result is None else dump(result)
 
 
 @app.tool
-async def list_user_guilds() -> dict | list | None:
+async def list_user_guilds():
     """List all Discord servers (guilds) the user is a member of"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
         guilds = await api.get_user_guilds()
         if guilds is None:
-            return None
-        return [{"id": g["id"], "name": g["name"], "owner": g["owner"]} for g in guilds]
+            return "[[ no return ]]"
+        result = [{"id": g["id"], "name": g["name"], "owner": g["owner"]} for g in guilds]
+        return dump(result)
 
 
 @app.tool
-async def get_guild_info(guild_id: str) -> dict | list | None:
+async def get_guild_info(guild_id: str):
     """Get detailed information about a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return await api.get_guild_info(guild_id)
+        result = await api.get_guild_info(guild_id)
+        return "[[ no return ]]" if result is None else dump(result)
 
 
 @app.tool
-async def list_guild_channels(guild_id: str) -> dict | list | None:
+async def list_guild_channels(guild_id: str):
     """List all channels in a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
         channels = await api.get_guild_channels(guild_id)
         if channels is None:
-            return None
-        return [{"id": c["id"], "name": c["name"], "type": c["type"]} for c in channels]
+            return "[[ no return ]]"
+        result = [{"id": c["id"], "name": c["name"], "type": c["type"]} for c in channels]
+        return dump(result)
 
 
 @app.tool
-async def get_channel_info(channel_id: str) -> dict | list | None:
+async def get_channel_info(channel_id: str):
     """Get information about a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return await api.get_channel_info(channel_id)
+        result = await api.get_channel_info(channel_id)
+        return "[[ no return ]]" if result is None else dump(result)
 
 
 @app.tool
@@ -239,7 +246,7 @@ async def read_channel_messages(
     before: str | None = None,
     after: str | None = None,
     around: str | None = None,
-) -> dict | list | None:
+):
     """Read recent messages from a Discord channel
 
     Args:
@@ -254,8 +261,8 @@ async def read_channel_messages(
     async with DiscordAPI(DISCORD_TOKEN) as api:
         messages = await api.get_channel_messages(channel_id, limit, before, after, around)
         if messages is None:
-            return None
-        return [
+            return "[[ no return ]]"
+        result = [
             {
                 "id": m["id"],
                 "content": m["content"],
@@ -268,15 +275,16 @@ async def read_channel_messages(
             }
             for m in messages
         ]
+        return dump(result)
 
 
 @app.tool
-async def send_channel_message(channel_id: str, content: str, ctx: Context) -> dict | list | None:
+async def send_channel_message(channel_id: str, content: str, ctx: Context):
     """Send a message to a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
         channel_info = await api.get_channel_info(channel_id)
         if channel_info is None or not isinstance(channel_info, dict):
-            return {"status": "error", "message": "Failed to retrieve channel information"}
+            return dump({"status": "error", "message": "Failed to retrieve channel information"})
 
         channel_name = channel_info.get("name", f"Channel {channel_id}")
         guild_id = channel_info.get("guild_id")
@@ -301,21 +309,22 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context) -> d
 
         match confirm_result.action:
             case "cancel":
-                return {"status": "cancelled", "message": "User chose not to provide the requested information."}
+                return dump({"status": "cancelled", "message": "User chose not to provide the requested information."})
             case "decline":
-                return {"status": "declined", "message": "User cancelled the entire operation"}
+                return dump({"status": "declined", "message": "User cancelled the entire operation"})
 
         assert confirm_result.action == "accept", confirm_result
 
         message = await api.send_message(channel_id, content)
         if message is None or not isinstance(message, dict):
-            return None
-        return {
+            return "[[ no return ]]"
+        result = {
             "id": message["id"],
             "content": message["content"],
             "channel_id": message["channel_id"],
             "timestamp": message["timestamp"],
         }
+        return dump(result)
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
