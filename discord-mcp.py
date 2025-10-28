@@ -54,7 +54,7 @@ def generate_headers_data() -> dict[str, str]:
     os_mapping = {"win10": "Windows NT 10.0", "win7": "Windows NT 6.1", "win8": "Windows NT 6.2", "mac os x": "Mac OS X 10_15_7", "linux": "Linux", "android": "Android 10", "ios": "iOS 14.0"}
 
     # Extract OS version more intelligently
-    os_name = ua_data.get("os", "win10").lower()
+    os_name = (ua_data.get("os") or "win10").lower()
     os_version = ua_data.get("os_version", "")
 
     # Use mapped version if available, otherwise construct from available data
@@ -62,10 +62,10 @@ def generate_headers_data() -> dict[str, str]:
         full_os_version = os_mapping[os_name]
     else:
         # Fallback: try to construct from os and os_version
-        base_os = ua_data.get("os", "Windows").title()
+        base_os = (ua_data.get("os") or "Windows").title()
         if os_version:
             if "mac" in os_name:
-                full_os_version = f"Mac OS X {os_version.replace('.', '_')}"
+                full_os_version = f"Mac OS X {(os_version or '').replace('.', '_')}"
             elif "win" in os_name:
                 full_os_version = f"Windows NT {os_version}"
             else:
@@ -74,7 +74,7 @@ def generate_headers_data() -> dict[str, str]:
             full_os_version = base_os
 
     # Map browser names
-    browser_name = ua_data.get("browser", "chrome").lower()
+    browser_name = (ua_data.get("browser") or "chrome").lower()
     if "chrome" in browser_name:
         browser = "Chrome"
     elif "firefox" in browser_name:
@@ -88,7 +88,7 @@ def generate_headers_data() -> dict[str, str]:
 
     # Map fake-useragent data to Discord super properties format
     super_properties = {
-        "os": ua_data.get("os", "Windows").title(),  # Windows, Linux, Mac OS X
+        "os": (ua_data.get("os") or "Windows").title(),  # Windows, Linux, Mac OS X
         "browser": browser,
         "device": "",  # Empty for desktop
         "system_locale": "zh-CN",  # Match X-Discord-Locale
