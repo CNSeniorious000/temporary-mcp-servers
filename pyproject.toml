@@ -11,6 +11,7 @@ dependencies = [
     "mcp-hmr~=0.0.2.3",
     "objprint~=0.3.0",
     "saneyaml~=0.6.1",
+    "stamina~=25.1.0",
 ]
 
 [tool.pyright]

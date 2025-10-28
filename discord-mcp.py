@@ -8,6 +8,7 @@
 #     "fastmcp~=2.13.0.1",
 #     "logfire[aiohttp-client]~=4.14.1",
 #     "saneyaml~=0.6.1",
+#     "stamina~=25.1.0",
 # ]
 # ///
 
@@ -22,6 +23,7 @@ from contextlib import suppress
 from os import environ, getenv
 
 import aiohttp
+import stamina
 from fake_useragent import UserAgent
 from fastmcp import Context, FastMCP
 from pydantic import Field
@@ -134,6 +136,7 @@ class DiscordAPI:
         if self.session:
             await self.session.close()
 
+    @stamina.retry(on=aiohttp.ClientError)
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict | list | None:
         if not self.session:
             raise RuntimeError("DiscordAPI must be used as async context manager")
