@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.12,<3.14"
 # dependencies = [
+#     "logfire~=4.14.1",
 #     "mcp~=1.19.0",
 #     "python-readability~=1.0.0rc0",
 #     "pywebview~=6.1",
