@@ -8,6 +8,8 @@ A collection of MCP servers for personal use cases. These are rough implementati
 
 Access Discord API via MCP. Requires `DISCORD_TOKEN` environment variable.
 
+Features: get user info, list servers/channels, read messages, send messages with confirmation.
+
 ```sh
 uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/HEAD/discord-mcp.py
 ```
@@ -16,9 +18,17 @@ uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/H
 
 Execute Python code in persistent IPython sessions via MCP.
 
+Features: persistent sessions, magic commands, multi-line code, async support.
+
 ```sh
 uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/HEAD/ipython-mcp.py
 ```
+
+## Key features
+
+Discord MCP: Fake-UserAgent for headers, elicit-based confirmation, stamina retry wrapper, lazy logfire instrumentation.
+
+IPython MCP: Session persistence, showtraceback wrapping, custom object printer, auto-generated session IDs.
 
 ## Requirements
 
