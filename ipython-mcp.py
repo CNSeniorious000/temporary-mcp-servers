@@ -156,34 +156,28 @@ async def ipython_execute_code(
     session_id: str | None = Field(None, description="Existing session ID to use. If not provided, a new session will be created"),
 ):
     """
-    Execute Python code in an IPython session.
+    Execute Python code in an IPython session with persistent state across calls.
 
-    This provides a persistent Python environment where you can:
-    - Execute multi-line code blocks
-    - Access variables across multiple calls
-    - Use IPython magic commands
-    - Import modules once and reuse them
-    - Execute async/await code seamlessly
+    Features:
+    - Variables persist between calls for incremental development
+    - Import modules once, reuse throughout session
+    - Magic commands for introspection, profiling, and environment management
 
-    Returns the execution result with output and any errors.
+    Session Management:
+    - Omit session_id for a new session
+    - Use same session_id to access previous variables
 
-    **Note:** `session_id` is automatically generated. For the first call or when you want to start with a clean context, do not specify session_id.
+    Common Magic Commands:
+    - Introspection: %whos (list vars), print? (signature), obj?? (source)
+    - Performance: %timeit (benchmark), %prun (profile)
+    - Environment: %env VAR=value (set), %cd /path (change dir)
+    - Files: %run script.py args (execute), %%writefile file.py (save)
 
-    Useful IPython magic commands:
-    - %timeit: Time code execution multiple times for average (avoids outliers), supports custom run count. Example: %timeit [x**2 for x in range(1000)] outputs: 100000 loops, best of 3: 12.1 µs per loop
-    - %cd: Change directory. Example: %cd /path/to/directory
-    - %env: View or set environment variables with interpolation. Examples: %env PATH (view system path), %env MODEL_PATH = "./models" (set variable)
-    - %who / %whos: List variables in current namespace. %who shows names only, %whos shows types and values. Example: %whos outputs: data: DataFrame (1000 rows x 5 columns), model: LinearRegression
-    - ? / ??: View object's docstring (?) or source code (??, for objects with accessible source). Examples: pd.DataFrame? (view DataFrame usage), np.mean?? (view mean function source)
-    - %run: Execute external Python script with command-line args, variables imported to current namespace. Example: %run train.py --epoch 10 --lr 0.01
-    - %prun: Profile code execution with function-level report showing call counts and time percentages. Example: %prun my_complex_function(data)
-
-    **Tips:** Actively use these IPython features for better development experience:
-    - Call %whos frequently to display current variables and their types
-    - Use %env instead of os.environ for reading/writing environment variables
-    - Use ? / ?? instead of help() / inspect.getsource() to get documentation and usage info for variables
-    - Use %cd instead of os.chdir() for directory changes
-    - After any code modifications, use %timeit to ensure no performance regression
+    Example input:
+    data = [1, 2, 3]
+    sum_data = sum(data)
+    %whos  # View variables in session
+    %timeit [x**2 for x in range(1000)]  # Benchmark
     """
     if new_session := session_id is None:
         session = sessions[session_id := str(uuid4())] = IPythonSession()
@@ -229,7 +223,19 @@ def ipython_clear_context(
     session_id: str,
     delete: bool = Field(False, description="Delete the session after clearing"),  # noqa: FBT001, FBT003
 ):
-    """Reset the IPython session: clear namespaces, history, and cached modules"""
+    """
+    Clear an IPython session's namespace and reset its state.
+
+    This will:
+    - Remove all user-defined variables from the session
+    - Clear execution history
+    - Reset the namespace to a clean state
+    - Keep the session alive (unless delete=True)
+
+    Args:
+        session_id: ID of the session to reset
+        delete: If True, delete the entire session after clearing
+    """
     session = _get_session(session_id)
     session.shell.reset(aggressive=True)
 
