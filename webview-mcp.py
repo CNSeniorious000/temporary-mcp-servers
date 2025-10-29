@@ -9,13 +9,13 @@
 # ///
 
 
-from asyncio import run, timeout, to_thread
+from asyncio import gather, run, timeout, to_thread
 from collections.abc import Callable
 from concurrent.futures import Future
 from contextlib import suppress
 from json import dumps
 from os import getenv
-from typing import Any, NotRequired, TypedDict
+from typing import Any, TypedDict
 
 from mcp.server import FastMCP
 from readability import Article
@@ -48,7 +48,7 @@ def parse(html: str, /, **options):
 
 
 class Response(TypedDict):
-    url: NotRequired[str]
+    url: str
     body: str
     status: int | None
 
@@ -56,7 +56,7 @@ class Response(TypedDict):
 def _fetch(url: str):
     fut = Future[Response]()
 
-    window = create_window(url, url=url, on_top=True)
+    window = create_window(url, url)
     assert window is not None
 
     status: int | None = None
@@ -64,9 +64,9 @@ def _fetch(url: str):
     @window.expose
     def finish():
         window.destroy()
-        result: Response = {"status": status, "body": window.state["html"]}
+        result: Response = {"status": status, "body": window.state["html"], "url": url}
         if window.state["url"] != url:
-            result["url"] = window.state["url"]
+            result["url"] += f" -> {window.state['url']}"
         fut.set_result(result)
 
     def on_loaded():
@@ -89,6 +89,7 @@ def _fetch(url: str):
 
 
 async def fetch(url: str, _retry_remaining=7) -> Response:
+    url = url.split("#", 1)[0]
     res = await to_thread(_fetch, url)
     if res["status"] is None and _retry_remaining > 0:  # maybe network issues
         return await fetch(url, _retry_remaining - 1)
@@ -110,7 +111,6 @@ def main():
 mcp = FastMCP("Webview MCP Server")
 
 
-@mcp.tool()
 async def read_url(url: str, request_timeout: float = 17):
     """Fetch and parse a URL, returning the plain text content."""
 
@@ -138,6 +138,13 @@ async def read_url(url: str, request_timeout: float = 17):
     return f"---\n{head}\n---\n\n{body.strip()}"
 
 
+@mcp.tool()
+async def read_urls(urls: list[str], request_timeout: float = 17):
+    """Fetch and parse multiple URLs, returning their plain text content."""
+    results = await gather(*(read_url(url, request_timeout) for url in urls))
+    return "\n\n".join(results)
+
+
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
     from threading import Thread
     from time import sleep
@@ -151,7 +158,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         logfire.log_slow_async_callbacks()
         globals()["_eval_js"] = logfire.instrument(record_return=True)(_eval_js)
         globals()["_fetch"] = logfire.instrument(record_return=True)(_fetch)
-        globals()["fetch"] = logfire.instrument(record_return=True)(fetch)
+        globals()["read_url"] = logfire.instrument(record_return=True)(read_url)
 
     Thread(target=worker, daemon=True).start()
 
