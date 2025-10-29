@@ -10,9 +10,11 @@ wheels/
 
 .vscode
 .cursor
+.claude/settings.local.json
 
 .DS_Store
 desktop.ini
 
 .env
 .github/copilot-instructions.md
+CLAUDE.md
