@@ -49,7 +49,7 @@ def parse(html: str, /, **options):
 
 
 class Response(TypedDict):
-    url: str
+    url: list[str]  # original and redirected URLs
     body: str
     status: int | None
 
@@ -65,9 +65,9 @@ def _fetch(url: str):
     @window.expose
     def finish():
         window.destroy()
-        result: Response = {"status": status, "body": window.state["html"], "url": url}
+        result: Response = {"status": status, "body": window.state["html"], "url": [url]}
         if window.state["url"] != url:
-            result["url"] += f" -> {window.state['url']}"
+            result["url"].append(window.state["url"])
         fut.set_result(result)
 
     def on_loaded():
@@ -118,9 +118,8 @@ async def read_url(url: str, request_timeout: float = 17):
     async with timeout(request_timeout):
         res = await fetch(url)
 
-    article = parse(res["body"])
-    frontmatter = {**res}
-    del frontmatter["body"]
+    article = parse(res["body"], base_uri=res["url"][-1])
+    frontmatter = {"url": " -> ".join(res["url"]), "status": res["status"] or "~"}
     if title := article.title:
         frontmatter["title"] = title
     if excerpt := article.excerpt:
