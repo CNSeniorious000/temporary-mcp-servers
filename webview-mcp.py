@@ -4,6 +4,7 @@
 # dependencies = [
 #     "logfire~=4.14.1",
 #     "mcp~=1.19.0",
+#     "mm-read~=0.0.3.2",
 #     "python-readability~=1.0.0rc0",
 #     "pywebview~=6.1",
 # ]
@@ -19,6 +20,7 @@ from os import getenv
 from typing import Any, TypedDict
 
 from mcp.server import FastMCP
+from mm_read.parse import to_markdown
 from readability import Article
 from readability import parse as _parse
 from readability.impl.common import parse_getter
@@ -134,7 +136,7 @@ async def read_url(url: str, request_timeout: float = 17):
         frontmatter["published"] = published
 
     head = "\n".join(f"{k}: {str(v).strip()}" for k, v in frontmatter.items())
-    body = article.text_content or "[[ no content ]]"
+    body = to_markdown(article.content or res["body"], res["url"][-1]) if res["body"] else "[[ no content ]]"
     return f"---\n{head}\n---\n\n{body.strip()}"
 
 
