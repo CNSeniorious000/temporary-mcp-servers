@@ -17,15 +17,17 @@ from concurrent.futures import Future
 from contextlib import suppress
 from json import dumps
 from os import getenv
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from mcp.server import FastMCP
 from mm_read.parse import to_markdown
-from readability import Article
-from readability import parse as _parse
-from readability.impl.common import parse_getter
-from readability.utils.cases import to_camel_cases, to_snake_cases
 from webview import create_window, start, windows
+
+if TYPE_CHECKING:
+    from readability import parse
+else:
+    parse = ...
+
 
 _window = create_window(__file__, hidden=True, minimized=True, focus=False)
 assert _window is not None
@@ -40,14 +42,44 @@ def _borrow_signature[T: Callable](_: T) -> Callable[[Callable], T]:
     return lambda f: f  # type: ignore
 
 
-@_borrow_signature(_parse)
-def parse(html: str, /, **options):
+_readability_use_fallback = False
+
+
+@_borrow_signature(parse)
+def readability_parse(html: str, /, **options):
+    global _readability_use_fallback
+
+    from readability import Article, parse
+    from readability.impl.common import parse_getter
+    from readability.utils.cases import to_camel_cases, to_snake_cases
+
+    if TYPE_CHECKING:
+        e1 = e2 = Exception()
+
+    # try the builtin backends first
+    if not _readability_use_fallback:
+        try:
+            return parse(html, **options)
+        except Exception as e:
+            e1 = e
+
+    # try our webview backend then
     if not base_window.state.get("ready"):
         source = parse_getter()
         _eval_js(f"window.parse = {source}")
         _eval_js("pywebview.state.ready = true")
-    result = _eval_js(f"parse({html!r}, {dumps(to_camel_cases(options))})")
-    return Article(**to_snake_cases(result))
+    try:
+        result = _eval_js(f"parse({html!r}, {dumps(to_camel_cases(options))})")
+        _readability_use_fallback = True
+        return Article(**to_snake_cases(result))
+    except Exception as e:
+        e2 = e
+
+    # both backends failed
+    raise e2 if _readability_use_fallback else e1 from None
+
+
+del parse  # to avoid accidental usage
 
 
 class Response(TypedDict):
@@ -120,7 +152,7 @@ async def read_url(url: str, request_timeout: float = 17):
     async with timeout(request_timeout):
         res = await fetch(url)
 
-    article = parse(res["body"], base_uri=res["url"][-1])
+    article = readability_parse(res["body"], base_uri=res["url"][-1])
     frontmatter = {"url": " -> ".join(res["url"]), "status": res["status"] or "~"}
     if title := article.title:
         frontmatter["title"] = title
@@ -158,6 +190,8 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
         logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, service_name="webview")
         logfire.instrument_mcp()
         logfire.log_slow_async_callbacks()
+        logfire.install_auto_tracing(["readability.impl"], min_duration=0.005)
+        globals()["readability_parse"] = logfire.instrument(record_return=True)(readability_parse)
         globals()["_eval_js"] = logfire.instrument(record_return=True)(_eval_js)
         globals()["_fetch"] = logfire.instrument(record_return=True)(_fetch)
         globals()["read_url"] = logfire.instrument(record_return=True)(read_url)
