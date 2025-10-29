@@ -121,12 +121,16 @@ def _fetch(url: str):
     window.events.loaded += on_loaded
     window.events.response_received += on_response_received
 
-    return fut.result()
+    return window, fut
 
 
 async def fetch(url: str, _retry_remaining=7) -> Response:
     url = url.split("#", 1)[0]
-    res = await to_thread(_fetch, url)
+    window, fut = _fetch(url)
+    try:
+        res = await to_thread(fut.result)
+    finally:
+        window.destroy()
     if res["status"] is None and _retry_remaining > 0:  # maybe network issues
         return await fetch(url, _retry_remaining - 1)
     return res
@@ -147,11 +151,14 @@ def main():
 mcp = FastMCP("Webview MCP Server")
 
 
-async def read_url(url: str, request_timeout: float = 17):
+async def read_url(url: str, request_timeout: float = 7):
     """Fetch and parse a URL, returning the plain text content."""
 
-    async with timeout(request_timeout):
-        res = await fetch(url)
+    try:
+        async with timeout(request_timeout):
+            res = await fetch(url)
+    except TimeoutError:
+        return f"---\nurl: {url}\n---\n\n[[ request timed out ]]"
 
     article = readability_parse(res["body"], base_uri=res["url"][-1])
     frontmatter = {"url": " -> ".join(res["url"]), "status": res["status"] or "~"}
@@ -174,9 +181,9 @@ async def read_url(url: str, request_timeout: float = 17):
 
 
 @mcp.tool()
-async def read_urls(urls: list[str], request_timeout: float = 17):
+async def read_urls(urls: list[str]):
     """Fetch and parse multiple URLs, returning their plain text content."""
-    results = await gather(*(read_url(url, request_timeout) for url in urls))
+    results = await gather(*map(read_url, urls))
     return "\n\n".join(results)
 
 
