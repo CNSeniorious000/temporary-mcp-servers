@@ -18,6 +18,7 @@ from contextlib import suppress
 from json import dumps
 from os import getenv
 from typing import TYPE_CHECKING, Any, TypedDict
+from urllib.parse import unquote
 
 from mcp.server import FastMCP
 from mm_read.parse import to_markdown
@@ -112,7 +113,7 @@ def _fetch(url: str):
         """)
 
     def on_response_received(response):
-        if response.url == url:
+        if unquote(response.url) == unquote(url):
             nonlocal status
             status = response.status_code
             window.events.response_received -= on_response_received
