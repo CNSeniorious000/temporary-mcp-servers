@@ -17,7 +17,7 @@ from concurrent.futures import Future
 from contextlib import suppress
 from json import dumps
 from os import getenv
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from urllib.parse import unquote
 
 from mcp.server import FastMCP
@@ -86,7 +86,7 @@ del parse  # to avoid accidental usage
 class Response(TypedDict):
     url: list[str]  # original and redirected URLs
     body: str
-    status: int | None
+    status: int | None | Literal[False]
 
 
 def _fetch(url: str, timeout: float):
@@ -97,7 +97,7 @@ def _fetch(url: str, timeout: float):
 
     fut.add_done_callback(lambda _: window.destroy())
 
-    status: int | None = None
+    status: int | None | Literal[False] = False
 
     @window.expose
     def finish():
@@ -119,6 +119,8 @@ def _fetch(url: str, timeout: float):
             nonlocal status
             status = response.status_code
             window.events.response_received -= on_response_received
+        else:
+            status = None
 
     window.events.loaded += on_loaded
     window.events.response_received += on_response_received
@@ -162,7 +164,9 @@ async def read_url(url: str, timeout: float = 7):  # noqa: ASYNC109
         return f"---\nurl: {url}\n---\n\n[[ Timeout {timeout}s exceeded. Possible network issue or slow site. Please retry with longer timeout. ]]"
 
     article = readability_parse(res["body"], base_uri=res["url"][-1])
-    frontmatter = {"url": " -> ".join(res["url"]), "status": res["status"] or "~"}
+    frontmatter: dict[str, Any] = {"url": " -> ".join(res["url"])}
+    if status := res["status"]:
+        frontmatter["status"] = status
     if title := article.title:
         frontmatter["title"] = title
     if excerpt := article.excerpt:
