@@ -114,7 +114,7 @@ def _get_session(session_id: str):
     return sessions[session_id]
 
 
-def _shorten(text: str, max_length=2000):
+def _shorten(text: str, max_length=15_000):
     if len(text) <= max_length + 100:
         return text
 
