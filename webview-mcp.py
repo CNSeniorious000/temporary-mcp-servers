@@ -4,7 +4,7 @@
 # dependencies = [
 #     "logfire~=4.14.1",
 #     "mcp~=1.20.0",
-#     "mm-read~=0.0.3.2",
+#     "mm-read~=0.0.4.0",
 #     "python-readability~=1.0.0rc0",
 #     "pywebview~=6.1",
 # ]
