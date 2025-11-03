@@ -6,7 +6,7 @@
 #     "dotenv-pth",
 #     "fake-useragent~=2.2.0",
 #     "logfire[aiohttp-client]~=4.14.1",
-#     "mcp~=1.19.0",
+#     "mcp~=1.20.0",
 #     "saneyaml~=0.6.1",
 #     "stamina~=25.1.0",
 # ]
