@@ -28,33 +28,32 @@ if parent := getenv("PARENT"):
     if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
         path.insert(0, str(cwd))
 
-elif venv_path := getenv("VIRTUAL_ENV"):
-    if not Path(executable).is_relative_to(Path.cwd()):
-        from subprocess import run
-        from tempfile import TemporaryDirectory
+elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_to(Path.cwd()):
+    from subprocess import run
+    from tempfile import TemporaryDirectory
 
-        from uv import find_uv_bin
+    from uv import find_uv_bin
 
-        if all_sitepackages := sorted(Path.cwd().glob("*/*/site-packages"), key=lambda p: len(str(p))):
-            site_packages = all_sitepackages[0]
-            assert site_packages.is_dir(), site_packages
+    if all_sitepackages := sorted(Path.cwd().glob("*/*/site-packages"), key=lambda p: len(str(p))):
+        site_packages = all_sitepackages[0]
+        assert site_packages.is_dir(), site_packages
 
-            site_dirs = getsitepackages()
-            if str(site_packages) not in site_dirs:
-                site_dirs.insert(0, str(site_packages))
+        site_dirs = getsitepackages()
+        if str(site_packages) not in site_dirs:
+            site_dirs.insert(0, str(site_packages))
 
-            rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
-            python_exe = site_packages.parent.parent / rel_path
-            assert python_exe.is_file(), python_exe
+        rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
+        python_exe = site_packages.parent.parent / rel_path
+        assert python_exe.is_file(), python_exe
 
-            with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
-                uv = find_uv_bin()
-                run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
-                new_env = {**environ, "PARENT": str(site_dirs)}
-                try:
-                    exit(run([uv, "run", __file__, "-p", str(Path(temp_path, rel_path))], env=new_env).returncode)
-                except KeyboardInterrupt:
-                    exit(1)
+        with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
+            uv = find_uv_bin()
+            run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
+            new_env = {**environ, "PARENT": str(site_dirs)}
+            try:
+                exit(run([uv, "run", __file__, "-p", str(Path(temp_path, rel_path))], env=new_env).returncode)
+            except KeyboardInterrupt:
+                exit(1)
 
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
