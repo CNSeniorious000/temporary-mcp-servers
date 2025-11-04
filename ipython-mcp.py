@@ -169,6 +169,7 @@ def _as_xml(data: dict[str, str]):
 
 class CustomObjectPrinter(ObjPrint):
     def _objstr(self, obj, memo, indent_level, cfg):
+        cfg.attr_pattern = "(?!^__.*__$).*"
         if isclass(obj):
             return repr(obj)
         cls = type(obj)
