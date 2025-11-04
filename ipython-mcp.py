@@ -7,6 +7,7 @@
 #     "ipython~=9.6.0",
 #     "logfire~=4.14.1",
 #     "objprint~=0.3.0",
+#     "uv~=0.9.7",
 # ]
 # ///
 
@@ -15,12 +16,51 @@ IPython MCP Server using FastMCP
 A Model Context Protocol server for programmatic IPython session management.
 """
 
+from os import environ, getenv
+from pathlib import Path
+from site import addsitedir, getsitepackages
+from sys import executable, path, platform
+
+if parent := getenv("PARENT"):
+    for i in eval(parent):
+        addsitedir(i)
+    cwd = Path.cwd()
+    if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
+        path.insert(0, str(cwd))
+
+elif venv_path := getenv("VIRTUAL_ENV"):
+    if not Path(executable).is_relative_to(Path.cwd()):
+        from subprocess import run
+        from tempfile import TemporaryDirectory
+
+        from uv import find_uv_bin
+
+        if all_sitepackages := sorted(Path.cwd().glob("*/*/site-packages"), key=lambda p: len(str(p))):
+            site_packages = all_sitepackages[0]
+            assert site_packages.is_dir(), site_packages
+
+            site_dirs = getsitepackages()
+            if str(site_packages) not in site_dirs:
+                site_dirs.insert(0, str(site_packages))
+
+            rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
+            python_exe = site_packages.parent.parent / rel_path
+            assert python_exe.is_file(), python_exe
+
+            with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
+                uv = find_uv_bin()
+                run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
+                new_env = {**environ, "PARENT": str(site_dirs)}
+                try:
+                    exit(run([uv, "run", __file__, "-p", str(Path(temp_path, rel_path))], env=new_env).returncode)
+                except KeyboardInterrupt:
+                    exit(1)
+
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
 from inspect import isclass
 from io import StringIO
 from operator import call
-from os import environ, getenv
 from sys import stderr
 from typing import Any, TypedDict
 from uuid import uuid4
