@@ -34,7 +34,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 
     from uv import find_uv_bin
 
-    if all_sitepackages := sorted(Path.cwd().glob("*/*/site-packages"), key=lambda p: len(str(p))):
+    if all_sitepackages := sorted(Path.cwd().glob("*/Lib/site-packages" if platform == "win32" else "*/lib/python*/site-packages"), key=lambda p: len(str(p))):
         site_packages = all_sitepackages[0]
         assert site_packages.is_dir(), site_packages
 
