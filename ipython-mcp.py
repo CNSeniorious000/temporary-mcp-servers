@@ -43,7 +43,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
             site_dirs.insert(0, str(site_packages))
 
         rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
-        python_exe = site_packages.parent.parent / rel_path
+        python_exe = (site_packages.parent.parent if platform == "win32" else site_packages.parent.parent.parent) / rel_path
         assert python_exe.is_file(), python_exe
 
         with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
