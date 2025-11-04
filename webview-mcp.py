@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from urllib.parse import unquote
 
 from mcp.server import FastMCP
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from mm_read.parse import to_markdown
 from reactivity import async_effect, reactive
 from webview import create_window, start, windows
@@ -188,7 +188,7 @@ async def read_url(url: str, timeout: float = 7):  # noqa: ASYNC109
     return f"---\n{head}\n---\n\n{body.strip()}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def read_urls(urls: list[str], timeout_seconds: float = 7):
     """Fetch and parse multiple URLs, returning their plain text content."""
 

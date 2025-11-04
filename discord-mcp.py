@@ -25,6 +25,7 @@ from os import environ, getenv
 from aiohttp import ClientConnectionError, ClientSession
 from fake_useragent import UserAgent
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 from saneyaml import dump
 from stamina import retry
@@ -196,7 +197,7 @@ class DiscordAPI:
 app = FastMCP("Discord MCP Server", instructions=__doc__)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_current_user():
     """Get information about the current Discord user"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -204,7 +205,7 @@ async def get_current_user():
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_user_guilds():
     """List all Discord servers (guilds) the user is a member of"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -215,7 +216,7 @@ async def list_user_guilds():
         return dump(result)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_guild_info(guild_id: str):
     """Get detailed information about a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -223,7 +224,7 @@ async def get_guild_info(guild_id: str):
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_guild_channels(guild_id: str):
     """List all channels in a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
@@ -234,7 +235,7 @@ async def list_guild_channels(guild_id: str):
         return dump(result)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_channel_info(channel_id: str):
     """Get information about a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
