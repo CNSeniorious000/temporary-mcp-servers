@@ -21,7 +21,7 @@ from os import getenv
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from urllib.parse import unquote
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server import FastMCP
 from mcp.types import CallToolResult, TextContent
 from mm_read.parse import to_markdown
 from reactivity import async_effect, reactive
