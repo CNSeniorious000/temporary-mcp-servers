@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.12,<3.14"
 # dependencies = [
+#     "hmr~=0.7.4",
 #     "logfire~=4.14.1",
 #     "mcp~=1.20.0",
 #     "mm-read~=0.0.4.0",
@@ -20,8 +21,10 @@ from os import getenv
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from urllib.parse import unquote
 
-from mcp.server import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import CallToolResult, TextContent
 from mm_read.parse import to_markdown
+from reactivity import async_effect, reactive
 from webview import create_window, start, windows
 
 if TYPE_CHECKING:
@@ -188,8 +191,28 @@ async def read_url(url: str, timeout: float = 7):  # noqa: ASYNC109
 @mcp.tool()
 async def read_urls(urls: list[str], timeout_seconds: float = 7):
     """Fetch and parse multiple URLs, returning their plain text content."""
-    results = await gather(*(read_url(url, timeout_seconds) for url in urls))
-    return "\n\n".join(results)
+
+    match len(urls):
+        case 0:
+            return CallToolResult(content=[])
+        case 1:
+            return await read_url(urls[0], timeout_seconds)
+
+    done = reactive(list[str]())
+
+    @async_effect
+    async def _():
+        await mcp.get_context().report_progress(len(done), len(urls), done[-1] if done else None)
+
+    async def _read_url(url: str):
+        try:
+            return await read_url(url, timeout_seconds)
+        finally:
+            done.append(url)
+
+    results = await gather(*(_read_url(url) for url in urls))
+
+    return CallToolResult(content=[TextContent(text=i, type="text") for i in results])
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
