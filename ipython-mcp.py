@@ -22,11 +22,12 @@ from site import addsitedir, getsitepackages
 from sys import executable, path, platform
 
 if parent := getenv("PARENT"):
-    for i in eval(parent):
-        addsitedir(i)
     cwd = Path.cwd()
     if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
         path.insert(0, str(cwd))
+    for i in reversed(eval(parent)):
+        path.insert(0, i)
+        addsitedir(i)
 
 elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_to(Path.cwd()):
     from subprocess import run
