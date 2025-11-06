@@ -243,7 +243,7 @@ async def get_channel_info(channel_id: str):
         return "[[ no return ]]" if result is None else dump(result)
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def read_channel_messages(
     channel_id: str,
     limit: int = 50,
