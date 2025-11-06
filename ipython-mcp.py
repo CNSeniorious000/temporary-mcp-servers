@@ -4,7 +4,7 @@
 # dependencies = [
 #     "fastmcp~=2.13.0.1",
 #     "hmr~=0.7.4",
-#     "ipython~=9.6.0",
+#     "ipython~=9.7.0",
 #     "logfire~=4.14.1",
 #     "objprint~=0.3.0",
 #     "uv~=0.9.7",
