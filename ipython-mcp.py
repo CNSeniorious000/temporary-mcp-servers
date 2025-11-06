@@ -49,9 +49,9 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
             uv = find_uv_bin()
             run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
-            new_env = {**environ, "PARENT": str(site_dirs)}
+            new_env = {**environ, "PARENT": str(site_dirs), "VIRTUAL_ENV": temp_path, "UV_LINK_MODE": "symlink"}
             try:
-                exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), __file__], env=new_env).returncode)
+                exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)
             except KeyboardInterrupt:
                 exit(1)
 
