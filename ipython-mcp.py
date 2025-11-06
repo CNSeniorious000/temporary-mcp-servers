@@ -51,7 +51,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
             run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
             new_env = {**environ, "PARENT": str(site_dirs)}
             try:
-                exit(run([uv, "run", __file__, "-p", str(Path(temp_path, rel_path))], env=new_env).returncode)
+                exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), __file__], env=new_env).returncode)
             except KeyboardInterrupt:
                 exit(1)
 
