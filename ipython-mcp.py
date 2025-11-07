@@ -23,11 +23,12 @@ from sys import executable, path, platform
 
 if parent := getenv("PARENT"):
     cwd = Path.cwd()
+    for i in eval(parent):
+        addsitedir(i)
+    if project_site_packages := getenv("PROJECT_SITE_PACKAGES"):
+        path.insert(0, project_site_packages)
     if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
         path.insert(0, str(cwd))
-    for i in reversed(eval(parent)):
-        path.insert(0, i)
-        addsitedir(i)
 
 elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_to(Path.cwd()):
     from subprocess import run
@@ -39,10 +40,6 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         site_packages = all_sitepackages[0]
         assert site_packages.is_dir(), site_packages
 
-        site_dirs = getsitepackages()
-        if str(site_packages) not in site_dirs:
-            site_dirs.insert(0, str(site_packages))
-
         rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
         python_exe = (site_packages.parent.parent if platform == "win32" else site_packages.parent.parent.parent) / rel_path
         assert python_exe.is_file(), python_exe
@@ -50,7 +47,10 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
             uv = find_uv_bin()
             run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
+            site_dirs = getsitepackages()
             new_env = {**environ, "PARENT": str(site_dirs), "VIRTUAL_ENV": temp_path, "UV_LINK_MODE": "symlink"}
+            if str(site_packages) not in site_dirs:
+                new_env["PROJECT_SITE_PACKAGES"] = str(site_packages)
             try:
                 exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)
             except KeyboardInterrupt:
