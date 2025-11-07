@@ -44,17 +44,29 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         python_exe = (site_packages.parent.parent if platform == "win32" else site_packages.parent.parent.parent) / rel_path
         assert python_exe.is_file(), python_exe
 
-        with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
-            uv = find_uv_bin()
-            run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
-            site_dirs = getsitepackages()
-            new_env = {**environ, "PARENT": str(site_dirs), "VIRTUAL_ENV": temp_path, "UV_LINK_MODE": "symlink"}
-            if str(site_packages) not in site_dirs:
-                new_env["PROJECT_SITE_PACKAGES"] = str(site_packages)
-            try:
-                exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)
-            except KeyboardInterrupt:
-                exit(1)
+        def get_python_version(exe):
+            for line in (Path(exe).parent.parent / "pyvenv.cfg").open():
+                if line.startswith("version_info = "):
+                    return line
+
+        project_py_version = get_python_version(python_exe)
+        current_py_version = get_python_version(executable)
+
+        if project_py_version != current_py_version:
+            with TemporaryDirectory("-venv", "ipython-mcp-") as temp_path:
+                uv = find_uv_bin()
+                run([uv, "venv", "-p", str(python_exe), "--seed", temp_path, "--link-mode", "symlink"], check=True)
+                site_dirs = getsitepackages()
+                new_env = {**environ, "PARENT": str(site_dirs), "VIRTUAL_ENV": temp_path, "UV_LINK_MODE": "symlink"}
+                if str(site_packages) not in site_dirs:
+                    new_env["PROJECT_SITE_PACKAGES"] = str(site_packages)
+                try:
+                    exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)
+                except KeyboardInterrupt:
+                    exit(1)
+        else:
+            path.insert(0, str(site_packages))
+            addsitedir(str(site_packages))
 
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
