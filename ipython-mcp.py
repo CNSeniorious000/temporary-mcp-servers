@@ -27,8 +27,6 @@ if parent := getenv("PARENT"):
         addsitedir(i)
     if project_site_packages := getenv("PROJECT_SITE_PACKAGES"):
         path.insert(0, project_site_packages)
-    if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
-        path.insert(0, str(cwd))
 
 elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_to(Path.cwd()):
     from subprocess import run
@@ -322,5 +320,8 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
     Thread(target=worker, daemon=True).start()
 
 if __name__ == "__main__":
+    cwd = Path.cwd()
+    if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
+        path.insert(0, str(cwd))
     with suppress(KeyboardInterrupt):
         mcp.run("stdio", show_banner=False)
