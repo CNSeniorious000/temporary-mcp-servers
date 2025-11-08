@@ -174,7 +174,7 @@ class DiscordAPI:
     async def get_channel_messages(
         self,
         channel_id: str,
-        limit: int = Field(50, le=100),  # Discord API limit is 100
+        limit: int = 50,
         before: str | None = None,
         after: str | None = None,
         around: str | None = None,
@@ -256,7 +256,7 @@ async def get_channel_info(channel_id: str):
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def read_channel_messages(
     channel_id: str,
-    limit: int = 50,
+    limit: int = Field(50, le=100),  # Discord API limit is 100
     before: str | None = None,
     after: str | None = None,
     around: str | None = None,
