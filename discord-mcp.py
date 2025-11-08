@@ -130,7 +130,7 @@ class DiscordAPI:
         self.session: ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = ClientSession(headers=headers | {"Authorization": self.token}, trust_env=True, raise_for_status=True)
+        self.session = ClientSession(DISCORD_API_BASE, headers=headers | {"Authorization": self.token}, trust_env=True, raise_for_status=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -142,8 +142,7 @@ class DiscordAPI:
         if not self.session:
             raise RuntimeError("DiscordAPI must be used as async context manager")
 
-        url = f"{DISCORD_API_BASE}{endpoint}"
-        async with self.session.request(method, url, **kwargs) as response:
+        async with self.session.request(method, endpoint, **kwargs) as response:
             return await response.json()
 
     async def get_current_user(self) -> dict | list | None:
