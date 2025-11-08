@@ -202,6 +202,20 @@ class DiscordAPI:
         """Get guild (server) information: https://docs.discord.food/resources/guild#get-guild"""
         return await self._make_request("GET", f"guilds/{guild_id}")
 
+    async def search_channel_messages(self, channel_id: str, content: str, limit: int, offset=0) -> dict | list | None:
+        """Search messages in a channel: https://docs.discord.food/resources/message#search-messages"""
+        params = {"content": content, "limit": limit}
+        if offset:
+            params["offset"] = offset
+        return await self._make_request("GET", f"channels/{channel_id}/messages/search", params=params)
+
+    async def search_guild_messages(self, guild_id: str, content: str, limit: int, offset=0) -> dict | list | None:
+        """Search messages in a guild: https://docs.discord.food/resources/message#search-messages"""
+        params = {"content": content, "limit": limit}
+        if offset:
+            params["offset"] = offset
+        return await self._make_request("GET", f"guilds/{guild_id}/messages/search", params=params)
+
 
 # Create FastMCP server
 app = FastMCP("Discord MCP Server", instructions=__doc__)
@@ -263,6 +277,30 @@ async def read_channel_messages(
     """
     async with DiscordAPI(DISCORD_TOKEN) as api:
         return dump(await api.get_channel_messages(channel_id, limit, before, after, around))
+
+
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def search_channel_messages(
+    channel_id: str,
+    content: str,
+    limit: int = Field(25, ge=1, le=25),
+    offset: int = 0,
+):
+    """Search for messages in a Discord channel by content"""
+    async with DiscordAPI(DISCORD_TOKEN) as api:
+        return dump(await api.search_channel_messages(channel_id, content, limit, offset))
+
+
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def search_guild_messages(
+    guild_id: str,
+    content: str,
+    limit: int = Field(25, ge=1, le=25),
+    offset: int = 0,
+):
+    """Search for messages in a Discord server (guild) by content"""
+    async with DiscordAPI(DISCORD_TOKEN) as api:
+        return dump(await api.search_guild_messages(guild_id, content, limit, offset))
 
 
 @app.tool()
