@@ -211,46 +211,35 @@ app = FastMCP("Discord MCP Server", instructions=__doc__)
 async def get_current_user():
     """Get information about the current Discord user"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        result = await api.get_current_user()
-        return "[[ no return ]]" if result is None else dump(result)
+        return dump(await api.get_current_user())
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_user_guilds():
     """List all Discord servers (guilds) the user is a member of"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        guilds = await api.get_user_guilds()
-        if guilds is None:
-            return "[[ no return ]]"
-        result = [{"id": g["id"], "name": g["name"], "owner": g["owner"]} for g in guilds]
-        return dump(result)
+        return dump(await api.get_user_guilds())
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_guild_info(guild_id: str):
     """Get detailed information about a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        result = await api.get_guild_info(guild_id)
-        return "[[ no return ]]" if result is None else dump(result)
+        return dump(await api.get_guild_info(guild_id))
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_guild_channels(guild_id: str):
     """List all channels in a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        channels = await api.get_guild_channels(guild_id)
-        if channels is None:
-            return "[[ no return ]]"
-        result = [{"id": c["id"], "name": c["name"], "type": c["type"]} for c in channels]
-        return dump(result)
+        return dump(await api.get_guild_channels(guild_id))
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_channel_info(channel_id: str):
     """Get information about a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        result = await api.get_channel_info(channel_id)
-        return "[[ no return ]]" if result is None else dump(result)
+        return dump(await api.get_channel_info(channel_id))
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -273,23 +262,7 @@ async def read_channel_messages(
     Note: Only one of before, after, or around can be specified at a time.
     """
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        messages = await api.get_channel_messages(channel_id, limit, before, after, around)
-        if messages is None:
-            return "[[ no return ]]"
-        result = [
-            {
-                "id": m["id"],
-                "content": m["content"],
-                "author": {
-                    "id": m["author"]["id"],
-                    "username": m["author"]["username"],
-                    "global_name": m["author"].get("global_name"),
-                },
-                "timestamp": m["timestamp"],
-            }
-            for m in messages
-        ]
-        return dump(result)
+        return dump(await api.get_channel_messages(channel_id, limit, before, after, around))
 
 
 @app.tool()
@@ -332,13 +305,7 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
         message = await api.send_message(channel_id, content)
         if message is None or not isinstance(message, dict):
             return "[[ no return ]]"
-        result = {
-            "id": message["id"],
-            "content": message["content"],
-            "channel_id": message["channel_id"],
-            "timestamp": message["timestamp"],
-        }
-        return dump(result)
+        return dump(message)
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
