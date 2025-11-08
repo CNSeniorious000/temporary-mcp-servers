@@ -25,6 +25,7 @@ from os import environ, getenv
 from aiohttp import ClientConnectionError, ClientSession
 from fake_useragent import UserAgent
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 from saneyaml import dump
@@ -134,7 +135,7 @@ class DiscordAPI:
         self.session: ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = ClientSession(DISCORD_API_BASE, headers=headers | {"Authorization": self.token}, trust_env=True, raise_for_status=True)
+        self.session = ClientSession(DISCORD_API_BASE, headers=headers | {"Authorization": self.token}, trust_env=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -154,6 +155,8 @@ class DiscordAPI:
             raise RuntimeError("DiscordAPI must be used as async context manager")
 
         async with self.session.request(method, endpoint, **kwargs) as response:
+            if not response.ok:
+                raise ToolError(f"{response.status} {response.reason} {await response.json()}") from None
             return await response.json()
 
     async def get_current_user(self) -> dict | list | None:
