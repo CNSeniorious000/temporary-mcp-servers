@@ -110,7 +110,7 @@ def _fetch(url: str, timeout: float):
             result["url"].append(window.state["url"])
         fut.set_result(result)
 
-    def on_loaded():
+    def sync():
         window.run_js("""
             pywebview.state.html = document.documentElement.outerHTML;
             pywebview.state.url = window.location.href;
@@ -125,10 +125,13 @@ def _fetch(url: str, timeout: float):
         else:
             status = None
 
-    window.events.loaded += on_loaded
+    window.events.loaded += sync
     window.events.response_received += on_response_received
 
+    with suppress(TimeoutError):
+        return fut.result(timeout)
     try:
+        sync()
         return fut.result(timeout)
     except TimeoutError as e:
         fut.set_exception(e)
