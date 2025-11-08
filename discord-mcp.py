@@ -42,6 +42,10 @@ def generate_headers_data() -> dict[str, str]:
     This function creates consistent browser fingerprints by using the same fake-useragent
     data source for both User-Agent and X-Super-Properties headers.
 
+    User API Docs:
+    - Website: https://docs.discord.food/
+    - Repository: https://github.com/discord-userdoccers/discord-userdoccers
+
     References:
     - Discord API Documentation: https://discord.com/developers/docs/reference
     - X-Super-Properties format: https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure
@@ -153,15 +157,15 @@ class DiscordAPI:
             return await response.json()
 
     async def get_current_user(self) -> dict | list | None:
-        """Get current user information"""
+        """Get current user information: https://docs.discord.food/resources/user#get-current-user"""
         return await self._make_request("GET", "users/@me")
 
     async def get_user_guilds(self) -> dict | list | None:
-        """Get user's guilds (servers)"""
+        """Get user's guilds (servers): https://docs.discord.food/resources/user#get-user-guilds"""
         return await self._make_request("GET", "users/@me/guilds")
 
     async def get_guild_channels(self, guild_id: str) -> dict | list | None:
-        """Get channels in a guild"""
+        """Get channels in a guild: https://docs.discord.food/resources/guild#get-guild-channels"""
         return await self._make_request("GET", f"guilds/{guild_id}/channels")
 
     async def get_channel_messages(
@@ -172,7 +176,7 @@ class DiscordAPI:
         after: str | None = None,
         around: str | None = None,
     ) -> dict | list | None:
-        """Get messages from a channel"""
+        """Get messages from a channel: https://docs.discord.food/resources/channel#get-messages"""
         params: dict[str, str | int] = {"limit": limit}
         if before:
             params["before"] = before
@@ -183,16 +187,16 @@ class DiscordAPI:
         return await self._make_request("GET", f"channels/{channel_id}/messages", params=params)
 
     async def send_message(self, channel_id: str, content: str) -> dict | list | None:
-        """Send a message to a channel"""
+        """Send a message to a channel: https://docs.discord.food/resources/channel#create-message"""
         data = {"content": content}
         return await self._make_request("POST", f"channels/{channel_id}/messages", json=data)
 
     async def get_channel_info(self, channel_id: str) -> dict | list | None:
-        """Get channel information"""
+        """Get channel information: https://docs.discord.food/resources/channel#get-channel"""
         return await self._make_request("GET", f"channels/{channel_id}")
 
     async def get_guild_info(self, guild_id: str) -> dict | list | None:
-        """Get guild (server) information"""
+        """Get guild (server) information: https://docs.discord.food/resources/guild#get-guild"""
         return await self._make_request("GET", f"guilds/{guild_id}")
 
 
