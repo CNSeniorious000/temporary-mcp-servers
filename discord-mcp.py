@@ -130,7 +130,7 @@ class DiscordAPI:
         self.session: ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = ClientSession(headers=headers | {"Authorization": self.token})
+        self.session = ClientSession(headers=headers | {"Authorization": self.token}, trust_env=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
