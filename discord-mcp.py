@@ -143,7 +143,7 @@ class DiscordAPI:
             await self.session.close()
 
     @retry(on=ClientConnectionError)
-    async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict | list | None:
+    async def _make_request(self, method: str, endpoint: str, **kwargs):
         """
         Make HTTP request to Discord API.
 
@@ -159,15 +159,15 @@ class DiscordAPI:
                 raise ToolError(f"{response.status} {response.reason} {await response.json()}")
             return await response.json()
 
-    async def get_current_user(self) -> dict | list | None:
+    async def get_current_user(self) -> dict:
         """Get current user information: https://docs.discord.food/resources/user#get-current-user"""
         return await self._make_request("GET", "users/@me")
 
-    async def get_user_guilds(self) -> dict | list | None:
+    async def get_user_guilds(self) -> list:
         """Get user's guilds (servers): https://docs.discord.food/resources/user#get-user-guilds"""
         return await self._make_request("GET", "users/@me/guilds")
 
-    async def get_guild_channels(self, guild_id: str) -> dict | list | None:
+    async def get_guild_channels(self, guild_id: str) -> list:
         """Get channels in a guild: https://docs.discord.food/resources/guild#get-guild-channels"""
         return await self._make_request("GET", f"guilds/{guild_id}/channels")
 
@@ -178,7 +178,7 @@ class DiscordAPI:
         before: str | None = None,
         after: str | None = None,
         around: str | None = None,
-    ) -> dict | list | None:
+    ) -> list:
         """Get messages from a channel: https://docs.discord.food/resources/channel#get-messages"""
         params: dict[str, str | int] = {"limit": limit}
         if before:
@@ -189,27 +189,27 @@ class DiscordAPI:
             params["around"] = around
         return await self._make_request("GET", f"channels/{channel_id}/messages", params=params)
 
-    async def send_message(self, channel_id: str, content: str) -> dict | list | None:
+    async def send_message(self, channel_id: str, content: str) -> dict:
         """Send a message to a channel: https://docs.discord.food/resources/channel#create-message"""
         data = {"content": content}
         return await self._make_request("POST", f"channels/{channel_id}/messages", json=data)
 
-    async def get_channel_info(self, channel_id: str) -> dict | list | None:
+    async def get_channel_info(self, channel_id: str) -> dict:
         """Get channel information: https://docs.discord.food/resources/channel#get-channel"""
         return await self._make_request("GET", f"channels/{channel_id}")
 
-    async def get_guild_info(self, guild_id: str) -> dict | list | None:
+    async def get_guild_info(self, guild_id: str) -> dict:
         """Get guild (server) information: https://docs.discord.food/resources/guild#get-guild"""
         return await self._make_request("GET", f"guilds/{guild_id}")
 
-    async def search_channel_messages(self, channel_id: str, content: str, limit: int, offset=0) -> dict | list | None:
+    async def search_channel_messages(self, channel_id: str, content: str, limit: int, offset=0) -> dict:
         """Search messages in a channel: https://docs.discord.food/resources/message#search-messages"""
         params = {"content": content, "limit": limit}
         if offset:
             params["offset"] = offset
         return await self._make_request("GET", f"channels/{channel_id}/messages/search", params=params)
 
-    async def search_guild_messages(self, guild_id: str, content: str, limit: int, offset=0) -> dict | list | None:
+    async def search_guild_messages(self, guild_id: str, content: str, limit: int, offset=0) -> dict:
         """Search messages in a guild: https://docs.discord.food/resources/message#search-messages"""
         params = {"content": content, "limit": limit}
         if offset:
@@ -308,19 +308,12 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
     """Send a message to a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
         channel_info = await api.get_channel_info(channel_id)
-        if channel_info is None or not isinstance(channel_info, dict):
-            return dump({"status": "error", "message": "Failed to retrieve channel information"})
+        channel_name: str = channel_info["name"]
+        guild_id = channel_info["guild_id"]
+        channel_type = channel_info["type"]  # 0 for GUILD_TEXT https://discord.com/developers/docs/resources/channel#channel-object-channel-types
 
-        channel_name = channel_info.get("name", f"Channel {channel_id}")
-        guild_id = channel_info.get("guild_id")
-        channel_type = channel_info.get("type", 0)
-
-        # Get guild name if it's a guild channel
-        guild_name = ""
-        if guild_id:
-            guild_info = await api.get_guild_info(guild_id)
-            if guild_info and isinstance(guild_info, dict):
-                guild_name = guild_info.get("name", "")
+        guild_info = await api.get_guild_info(guild_id)
+        guild_name: str = guild_info["name"]
 
         # Format channel display name
         channel_display = f"#{channel_name!r} in {guild_name!r}" if guild_name else f"#{channel_name!r}" if channel_type == 0 else f"Channel {channel_name!r}"
@@ -338,11 +331,7 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
             case "decline":
                 return dump({"status": "declined", "message": "User cancelled the entire operation"})
 
-        assert confirm_result.action == "accept", confirm_result
-
         message = await api.send_message(channel_id, content)
-        if message is None or not isinstance(message, dict):
-            return "[[ no return ]]"
         return dump(message)
 
 
