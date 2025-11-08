@@ -156,7 +156,7 @@ class DiscordAPI:
 
         async with self.session.request(method, endpoint, **kwargs) as response:
             if not response.ok:
-                raise ToolError(f"{response.status} {response.reason} {await response.json()}") from None
+                raise ToolError(f"{response.status} {response.reason} {await response.json()}")
             return await response.json()
 
     async def get_current_user(self) -> dict | list | None:
