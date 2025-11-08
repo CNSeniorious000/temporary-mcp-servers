@@ -31,7 +31,7 @@ from saneyaml import dump
 from stamina import retry
 
 # Discord API configuration
-DISCORD_API_BASE = "https://discord.com/api/v9"
+DISCORD_API_BASE = "https://discord.com/api/v9/"
 DISCORD_TOKEN: str = getenv("DISCORD_TOKEN")  # type: ignore
 assert DISCORD_TOKEN is not None, "Please set the DISCORD_TOKEN environment variable."
 
@@ -139,6 +139,13 @@ class DiscordAPI:
 
     @retry(on=ClientConnectionError)
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> dict | list | None:
+        """
+        Make HTTP request to Discord API.
+
+        NOTE: endpoint should NOT start with '/' because base_url already ends with '/'.
+        Per RFC 3986, absolute paths (starting with /) in relative URLs are resolved
+        against the base URL's root, not appended to it. Use 'users/@me' not '/users/@me'.
+        """
         if not self.session:
             raise RuntimeError("DiscordAPI must be used as async context manager")
 
@@ -147,15 +154,15 @@ class DiscordAPI:
 
     async def get_current_user(self) -> dict | list | None:
         """Get current user information"""
-        return await self._make_request("GET", "/users/@me")
+        return await self._make_request("GET", "users/@me")
 
     async def get_user_guilds(self) -> dict | list | None:
         """Get user's guilds (servers)"""
-        return await self._make_request("GET", "/users/@me/guilds")
+        return await self._make_request("GET", "users/@me/guilds")
 
     async def get_guild_channels(self, guild_id: str) -> dict | list | None:
         """Get channels in a guild"""
-        return await self._make_request("GET", f"/guilds/{guild_id}/channels")
+        return await self._make_request("GET", f"guilds/{guild_id}/channels")
 
     async def get_channel_messages(
         self,
@@ -173,20 +180,20 @@ class DiscordAPI:
             params["after"] = after
         if around:
             params["around"] = around
-        return await self._make_request("GET", f"/channels/{channel_id}/messages", params=params)
+        return await self._make_request("GET", f"channels/{channel_id}/messages", params=params)
 
     async def send_message(self, channel_id: str, content: str) -> dict | list | None:
         """Send a message to a channel"""
         data = {"content": content}
-        return await self._make_request("POST", f"/channels/{channel_id}/messages", json=data)
+        return await self._make_request("POST", f"channels/{channel_id}/messages", json=data)
 
     async def get_channel_info(self, channel_id: str) -> dict | list | None:
         """Get channel information"""
-        return await self._make_request("GET", f"/channels/{channel_id}")
+        return await self._make_request("GET", f"channels/{channel_id}")
 
     async def get_guild_info(self, guild_id: str) -> dict | list | None:
         """Get guild (server) information"""
-        return await self._make_request("GET", f"/guilds/{guild_id}")
+        return await self._make_request("GET", f"guilds/{guild_id}")
 
 
 # Create FastMCP server
