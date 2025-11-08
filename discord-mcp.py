@@ -303,7 +303,7 @@ async def search_guild_messages(
         return dump(await api.search_guild_messages(guild_id, content, limit, offset))
 
 
-@app.tool()
+@app.tool(annotations=ToolAnnotations(destructiveHint=False))
 async def send_channel_message(channel_id: str, content: str, ctx: Context):
     """Send a message to a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:

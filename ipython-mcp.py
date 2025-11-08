@@ -80,6 +80,7 @@ from fastmcp.exceptions import ToolError
 from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
+from mcp.types import ToolAnnotations
 from objprint import ObjPrint
 from pydantic import Field
 from reactivity.hmr import cache_across_reloads
@@ -201,7 +202,7 @@ This provides a persistent, interactive Python environment with full access to I
 """
 
 
-@mcp.tool(title="Execute Python Code")
+@mcp.tool(title="Execute Python Code", annotations=ToolAnnotations(destructiveHint=False))
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
     session_id: str | None = Field(None, description="Existing session ID to use. If not provided, a new session will be created"),
@@ -269,7 +270,7 @@ async def ipython_execute_code(
     return _as_xml(out)
 
 
-@mcp.tool(title="Reset IPython Session")
+@mcp.tool(title="Reset IPython Session", annotations=ToolAnnotations(destructiveHint=False))
 def ipython_clear_context(
     session_id: str,
     delete: bool = Field(False, description="Delete the session after clearing"),  # noqa: FBT001, FBT003
