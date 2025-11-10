@@ -31,6 +31,18 @@ from pydantic import BaseModel, Field
 from saneyaml import dump
 from stamina import retry
 
+
+def filter_fields_blacklist(data, fields_to_remove: set[str]):
+    """Recursively remove specified fields from data using blacklist approach"""
+    match data:
+        case list():
+            return [filter_fields_blacklist(item, fields_to_remove) for item in data]
+        case dict():
+            return {k: filter_fields_blacklist(v, fields_to_remove) for k, v in data.items() if k not in fields_to_remove}
+        case _:
+            return data
+
+
 # Discord API configuration
 DISCORD_API_BASE = "https://discord.com/api/v9/"
 DISCORD_TOKEN: str = getenv("DISCORD_TOKEN")  # type: ignore
@@ -216,8 +228,11 @@ class DiscordAPI:
             params["offset"] = offset
         return await self._make_request("GET", f"guilds/{guild_id}/messages/search", params=params)
 
+    async def get_user_dms(self) -> list:
+        """Get DM and GROUP_DM channels: https://docs.discord.food/resources/message#get-user-message-summaries"""
+        return await self._make_request("GET", "users/@me/channels")
 
-# Create FastMCP server
+
 app = FastMCP("Discord MCP Server", instructions=__doc__)
 
 
@@ -225,35 +240,54 @@ app = FastMCP("Discord MCP Server", instructions=__doc__)
 async def get_current_user():
     """Get information about the current Discord user"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_current_user())
+        data = await api.get_current_user()
+        filtered_data = filter_fields_blacklist(data, {"banner", "avatar", "accent_color", "discriminator", "public_flags", "flags", "avatar_decoration_data"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_user_guilds():
     """List all Discord servers (guilds) the user is a member of"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_user_guilds())
+        data = await api.get_user_guilds()
+        filtered_data = filter_fields_blacklist(data, {"icon", "banner", "permissions", "features"})
+        return dump(filtered_data)
+
+
+@app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def list_user_dms():
+    """List all DM and GROUP_DM channels for the current user"""
+    async with DiscordAPI(DISCORD_TOKEN) as api:
+        data = await api.get_user_dms()
+        filtered_data = filter_fields_blacklist(data, {"flags", "avatar", "avatar_decoration_data", "clan", "badge"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_guild_info(guild_id: str):
     """Get detailed information about a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_guild_info(guild_id))
+        data = await api.get_guild_info(guild_id)
+        filtered_data = filter_fields_blacklist(data, {"icon", "banner", "splash", "discovery_splash", "features", "color", "colors", "permissions", "afk_timeout"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def list_guild_channels(guild_id: str):
     """List all channels in a Discord server (guild)"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_guild_channels(guild_id))
+        data = await api.get_guild_channels(guild_id)
+        filtered_data = filter_fields_blacklist(data, {"flags", "permission_overwrites", "voice_background_display", "bitrate", "rtc_region"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_channel_info(channel_id: str):
     """Get information about a Discord channel"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_channel_info(channel_id))
+        data = await api.get_channel_info(channel_id)
+        filtered_data = filter_fields_blacklist(data, {"permission_overwrites", "theme_color"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -276,7 +310,31 @@ async def read_channel_messages(
     Note: Only one of before, after, or around can be specified at a time.
     """
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.get_channel_messages(channel_id, limit, before, after, around))
+        data = await api.get_channel_messages(channel_id, limit, before, after, around)
+        # Remove redundant fields that repeat across messages/users
+        fields_to_remove = {
+            "avatar",
+            "public_flags",
+            "flags",
+            "discriminator",
+            "banner",
+            "accent_color",
+            "banner_color",
+            "display_name_styles",
+            "clan",
+            "badge",
+            "avatar_decoration_data",
+            "collectibles",
+            "primary_guild",  # Remove empty/redundant user metadata
+            "mention_roles",  # Usually empty array
+            "attachments",  # Usually empty array
+            "embeds",  # Usually empty array
+            "components",  # Usually empty array
+            "channel_id",  # Same for all messages in response
+            "guild_id",  # Same for all messages in response (when applicable)
+        }
+        filtered_data = filter_fields_blacklist(data, fields_to_remove)
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -286,9 +344,14 @@ async def search_channel_messages(
     limit: int = Field(25, ge=1, le=25),
     offset: int = 0,
 ):
-    """Search for messages in a Discord channel by content"""
+    """Search for messages in a Discord channel by content
+
+    Note: Only works for DM and GROUP_DM channels. For guild text channels, use search_guild_messages instead.
+    """
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.search_channel_messages(channel_id, content, limit, offset))
+        data = await api.search_channel_messages(channel_id, content, limit, offset)
+        filtered_data = filter_fields_blacklist(data, {"flags", "avatar", "discriminator", "public_flags", "clan"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -300,7 +363,9 @@ async def search_guild_messages(
 ):
     """Search for messages in a Discord server (guild) by content"""
     async with DiscordAPI(DISCORD_TOKEN) as api:
-        return dump(await api.search_guild_messages(guild_id, content, limit, offset))
+        data = await api.search_guild_messages(guild_id, content, limit, offset)
+        filtered_data = filter_fields_blacklist(data, {"flags", "avatar", "discriminator", "public_flags", "clan"})
+        return dump(filtered_data)
 
 
 @app.tool(annotations=ToolAnnotations(destructiveHint=False))
@@ -332,7 +397,8 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
                 return dump({"status": "declined", "message": "User cancelled the entire operation"})
 
         message = await api.send_message(channel_id, content)
-        return dump(message)
+        filtered_message = filter_fields_blacklist(message, {"flags", "banner", "accent_color", "avatar", "clan", "tts", "banner_color", "discriminator", "public_flags", "avatar_decoration_data"})
+        return dump(filtered_message)
 
 
 if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
