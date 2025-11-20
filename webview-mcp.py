@@ -95,7 +95,7 @@ class Response(TypedDict):
 def _fetch(url: str, timeout: float):
     fut = Future[Response]()
 
-    window = create_window(url, url)
+    window = create_window(url, url, hidden=not getenv("WEBVIEW_VISIBLE"))
     assert window is not None
 
     fut.add_done_callback(lambda _: window.destroy())
