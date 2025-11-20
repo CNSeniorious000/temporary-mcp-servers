@@ -4,6 +4,16 @@ A collection of MCP servers for personal use cases. These are rough implementati
 
 ## Servers
 
+### Webview MCP Server
+
+Read URLs using a webview. Cheaper and lighter than any headless browser solution.
+
+Features: fetch and parse URLs concurrently, convert HTML to markdown.
+
+```sh
+uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/HEAD/webview-mcp.py
+```
+
 ### Discord MCP Server
 
 Access Discord API via MCP. Requires `DISCORD_TOKEN` environment variable.
@@ -25,6 +35,8 @@ uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/H
 ```
 
 ## Key features
+
+Webview MCP: URL fetching and parsing, HTML to Markdown conversion.
 
 Discord MCP: Fake-UserAgent for headers, elicit-based confirmation, stamina retry wrapper, lazy logfire instrumentation.
 
