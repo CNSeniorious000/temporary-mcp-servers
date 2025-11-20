@@ -18,6 +18,7 @@ from concurrent.futures import Future
 from contextlib import suppress
 from json import dumps
 from os import getenv
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from urllib.parse import unquote
 
@@ -203,9 +204,14 @@ async def read_urls(urls: list[str], timeout_seconds: float = 7):
 
     done = reactive(list[str]())
 
+    total = len(urls)
+    t = perf_counter()
+
     @async_effect
     async def _():
-        await mcp.get_context().report_progress(len(done), len(urls), done[-1] if done else None)
+        await mcp.get_context().report_progress(len(done), total, done[-1] if done else None)
+        if len(done) == total:
+            await mcp.get_context().report_progress(total, total, f"Read {total} URLs in {perf_counter() - t:.1f}s")
 
     async def _read_url(url: str):
         try:
