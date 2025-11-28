@@ -12,7 +12,7 @@
 # ///
 
 
-from asyncio import gather, run, to_thread
+from asyncio import Semaphore, Task, create_task, gather, run, to_thread
 from collections.abc import Callable
 from concurrent.futures import Future
 from contextlib import suppress
@@ -32,6 +32,43 @@ if TYPE_CHECKING:
     from readability import parse
 else:
     parse = ...
+
+
+class ConcurrencyLimiter:
+    def __init__(self, *, max_burst: int, max_concurrent: int, refill_interval: float):
+        self.max_burst = max_burst
+        self.active_count = 0
+        self.refill_interval = refill_interval
+
+        self.burst_limiter = Semaphore(max_burst)
+        self.concurrency_limiter = Semaphore(max_concurrent)
+
+        self._refill_task: Task | None = None
+
+    async def _refill(self):
+        from asyncio import sleep
+
+        while True:
+            await sleep(self.refill_interval)
+            if self.active_count > 0:
+                async with self.concurrency_limiter:
+                    if self.active_count > 0:
+                        self.active_count -= 1
+                        self.burst_limiter.release()
+
+    async def __aenter__(self):
+        self.active_count += 1
+        if self._refill_task is None or self._refill_task.done():
+            self._refill_task = create_task(self._refill())
+        await self.burst_limiter.acquire()
+        await self.concurrency_limiter.acquire()
+        return self
+
+    async def __aexit__(self, *_):
+        if self.active_count > 0:
+            self.active_count -= 1
+            self.burst_limiter.release()
+        self.concurrency_limiter.release()
 
 
 _window = create_window(__file__, hidden=True, minimized=True, focus=False)
@@ -213,11 +250,14 @@ async def read_urls(urls: list[str], timeout_seconds: float = 7):
         if len(done) == total:
             await mcp.get_context().report_progress(total, total, f"Read {total} URLs in {perf_counter() - t:.1f}s")
 
+    limiter = ConcurrencyLimiter(max_burst=3, max_concurrent=15, refill_interval=1)
+
     async def _read_url(url: str):
-        try:
-            return await read_url(url, timeout_seconds)
-        finally:
-            done.append(url)
+        async with limiter:
+            try:
+                return await read_url(url, timeout_seconds)
+            finally:
+                done.append(url)
 
     results = await gather(*(_read_url(url) for url in urls))
 
