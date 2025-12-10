@@ -205,7 +205,7 @@ This provides a persistent, interactive Python environment with full access to I
 @mcp.tool(title="Execute Python Code", annotations=ToolAnnotations(destructiveHint=False))
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
-    session_id: str | None = Field(None, description="Existing session ID to use. If not provided, a new session will be created"),
+    session_id: str | None = Field(None, description="Session ID returned by a previous call; leave unset on the very first call or when no ID was returned"),
 ):
     """
     Execute Python code in an IPython session with persistent state across calls.
@@ -216,8 +216,8 @@ async def ipython_execute_code(
     - Magic commands for introspection, profiling, and environment management
 
     Session Management:
-    - Omit session_id for a new session
-    - Use same session_id to access previous variables
+    - Reuse a session_id only if it was provided in an earlier response
+    - Leave session_id unset on the first call or whenever no ID was returned previously
 
     Common Magic Commands:
     - Introspection: %whos (list vars), print? (signature), obj?? (source)
