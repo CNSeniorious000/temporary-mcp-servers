@@ -2,14 +2,12 @@
 # /// script
 # requires-python = ">=3.12,<3.14"
 # dependencies = [
-#     "anyio==4.12.0",
-#     "hmr~=0.7.4",
+#     "hmr~=0.7.6.2",
 #     "logfire~=4.16.0",
 #     "mcp~=1.23.1",
 #     "mm-read~=0.0.4.0",
 #     "python-readability~=1.0.0rc0",
 #     "pywebview~=6.1",
-#     "sniffio",
 # ]
 # ///
 
