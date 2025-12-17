@@ -14,7 +14,7 @@ dependencies = [
     "python-readability~=1.0.0rc0",
     "pywebview~=6.1",
     "saneyaml~=0.6.1",
-    "stamina~=25.1.0",
+    "stamina~=25.2.0",
     "uv~=0.7",
 ]
 
