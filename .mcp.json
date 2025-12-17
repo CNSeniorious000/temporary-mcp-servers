@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "discord": {
+      "command": ".venv/Scripts/mcp-hmr",
+      "args": [
+        "discord-mcp.py:app"
+      ]
+    },
+    "py": {
+      "command": ".venv/Scripts/mcp-hmr",
+      "args": [
+        "ipython-mcp.py:mcp"
+      ]
+    },
+    "web": {
+      "command": ".venv/Scripts/python",
+      "args": [
+        "webview-mcp.py"
+      ]
+    }
+  }
+}
