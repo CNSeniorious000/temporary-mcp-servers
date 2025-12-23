@@ -1,21 +1,34 @@
 {
   "mcpServers": {
     "discord": {
-      "command": ".venv/Scripts/mcp-hmr",
+      "command": "uv",
       "args": [
+        "run",
+        "mcp-hmr",
         "discord-mcp.py:app"
       ]
     },
     "py": {
-      "command": ".venv/Scripts/mcp-hmr",
+      "command": "uv",
       "args": [
+        "run",
+        "mcp-hmr",
         "ipython-mcp.py:mcp"
       ]
     },
     "web": {
-      "command": ".venv/Scripts/python",
+      "command": "uv",
       "args": [
+        "run",
         "webview-mcp.py"
+      ]
+    },
+    "xiaoyuzhoufm": {
+      "command": "uv",
+      "args": [
+        "run",
+        "mcp-hmr",
+        "xiaoyuzhoufm-mcp.py:app"
       ]
     }
   }
