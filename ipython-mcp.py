@@ -34,13 +34,31 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 
     from uv import find_uv_bin
 
-    if all_sitepackages := sorted(Path.cwd().glob("*/Lib/site-packages" if platform == "win32" else "*/lib/python*/site-packages"), key=lambda p: len(str(p))):
-        site_packages = all_sitepackages[0]
-        assert site_packages.is_dir(), site_packages
+    def find_venv():
+        current = Path.cwd()
+        if (current / "pyvenv.cfg").is_file():
+            return current
 
-        rel_path = "scripts/python.exe" if platform == "win32" else "bin/python"
-        python_exe = (site_packages.parent.parent if platform == "win32" else site_packages.parent.parent.parent) / rel_path
+        for pyvenv_cfg in sorted(current.glob("*/pyvenv.cfg")) or sorted(current.glob("*/*/pyvenv.cfg")):
+            return pyvenv_cfg.parent
+
+        while current.parent != current:
+            current = current.parent
+            if (current / "pyvenv.cfg").is_file():
+                return current
+            for pyvenv_cfg in sorted(current.glob("*/pyvenv.cfg")):
+                return pyvenv_cfg.parent
+
+        return
+
+    if venv_root := find_venv():
+        rel_path = "Scripts/python.exe" if platform == "win32" else "bin/python"
+
+        python_exe = venv_root / rel_path
         assert python_exe.is_file(), python_exe
+
+        site_packages = venv_root / ("Lib/site-packages" if platform == "win32" else "lib/python3.12/site-packages")
+        assert site_packages.is_dir(), site_packages
 
         def get_python_version(exe):
             for line in (Path(exe).parent.parent / "pyvenv.cfg").open():
