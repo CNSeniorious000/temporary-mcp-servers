@@ -141,14 +141,14 @@ class IPythonSession:
             finally:
                 results[:] = [stdout.getvalue(), stderr.getvalue()]
 
-    def format_exc(self, exc: BaseException):
+    def format_exc(self):
         """Format an exception using IPython's traceback formatter"""
 
         with self._capture_output() as outputs:
             original_color_settings = self.shell.colors
             try:
                 self.shell.colors = "nocolor"
-                self.original_showtraceback((type(exc), exc, exc.__traceback__))
+                self.original_showtraceback()
             finally:
                 self.shell.colors = original_color_settings
         return "\n".join(outputs).strip()
@@ -166,7 +166,7 @@ class IPythonSession:
             "success": result.success,
             "stdout": stdout,
             "stderr": stderr,
-            "error": self.format_exc(exc) if exc else None,
+            "error": self.format_exc() if exc else None,
             "result": result.result,
         }
 
