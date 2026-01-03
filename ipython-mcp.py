@@ -58,9 +58,11 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         assert python_exe.is_file(), python_exe
 
         def get_python_version(exe):
-            for line in (Path(exe).parent.parent / "pyvenv.cfg").open():
-                if line.startswith("version_info = "):
+            for line in (cfg := Path(exe).parent.parent / "pyvenv.cfg").open():
+                if line.startswith(("version_info = ", "version = ")):
                     return line
+
+            raise RuntimeError(f"Could not determine Python version for {cfg}")
 
         project_py_version = get_python_version(python_exe)
         current_py_version = get_python_version(executable)
