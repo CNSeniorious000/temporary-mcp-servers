@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "fastmcp~=2.14.5.0",
+#     "fastmcp~=3.1.0.0",
 #     "hmr~=0.7.4",
 #     "ipython~=9.11.0",
 #     "logfire~=4.27.0",
@@ -224,7 +224,7 @@ class CustomObjectPrinter(ObjPrint):
 _repr = CustomObjectPrinter().objstr
 
 
-mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
+mcp = FastMCP("Python (IPython)", version=__version__)
 mcp.instructions = """
 When you need to execute Python code programmatically, always prefer this IPython session over creating temporary files or using subprocess calls.
 This provides a persistent, interactive Python environment with full access to IPython's features including magic commands.
@@ -357,8 +357,17 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
             logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False, service_name="ipython")
             logfire.instrument_mcp()
 
+        from fastmcp.decorators import get_fastmcp_meta
+        from fastmcp.tools.function_tool import ToolMeta
+
         for tool in (ipython_clear_context, ipython_execute_code):
-            tool.fn = logfire.instrument(span_name=f"<<< {tool.name} >>>", record_return=True)(tool.fn)
+            metadata = get_fastmcp_meta(tool)
+            assert isinstance(metadata, ToolMeta)
+
+            tool_name = metadata.name or tool.__name__
+            instrumented = logfire.instrument(span_name=f"<<< {tool_name} >>>", record_return=True)(tool)  # type: ignore[arg-type]
+            mcp.local_provider.remove_tool(tool_name)
+            mcp.add_tool(instrumented)
 
     Thread(target=worker, daemon=True).start()
 
