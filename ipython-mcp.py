@@ -87,6 +87,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
             path.insert(0, str(site_packages))
             addsitedir(str(site_packages))
 
+from asyncio.subprocess import PIPE, create_subprocess_exec
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
 from inspect import isclass
@@ -312,6 +313,23 @@ async def ipython_execute_code(
     return _as_xml(out)
 
 
+@mcp.tool(title="pip_install", annotations=ToolAnnotations(destructiveHint=False))
+async def uv_pip_install(args: list[str] = Field(default_factory=list, description="Arguments passed after `uv pip install`")):  # noqa: B008
+    """
+    Install PyPI packages into this temporary execution environment using `uv pip install`.
+
+    It installs into the current execution environment (not the project environment), and installed packages are shared by all sessions.
+    Always prefer this over raw calls to `%pip`.
+    """
+    proc = await create_subprocess_exec(f"uv pip install {' '.join(args)}", stdout=PIPE, stderr=PIPE)
+    stdout, stderr = (chunk.decode(errors="replace").strip() for chunk in await proc.communicate())
+    out = {k: v for k, v in {"stdout": stdout, "stderr": stderr}.items() if v}
+    if proc.returncode:
+        out["exit_code"] = str(proc.returncode)
+        raise ToolError(_as_xml(out))
+    return _as_xml(out) or "[[ uv pip install successful, stdout/stderr empty ]]"
+
+
 @mcp.tool(title="Reset IPython Session", annotations=ToolAnnotations(destructiveHint=False))
 def ipython_clear_context(
     session_id: str,
@@ -357,7 +375,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
             logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False, service_name="ipython")
             logfire.instrument_mcp()
 
-        for tool in (ipython_clear_context, ipython_execute_code):
+        for tool in (ipython_clear_context, ipython_execute_code, uv_pip_install):
             tool.fn = logfire.instrument(span_name=f"<<< {tool.name} >>>", record_return=True)(tool.fn)
 
     Thread(target=worker, daemon=True).start()
