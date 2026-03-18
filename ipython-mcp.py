@@ -321,7 +321,10 @@ async def uv_pip_install(args: list[str] = Field(default_factory=list, descripti
     It installs into the current execution environment (not the project environment), and installed packages are shared by all sessions.
     Always prefer this over raw calls to `%pip`.
     """
-    proc = await create_subprocess_exec(f"uv pip install {' '.join(args)}", stdout=PIPE, stderr=PIPE)
+
+    from uv import find_uv_bin
+
+    proc = await create_subprocess_exec(f"{find_uv_bin()} pip install {' '.join(args)}", stdout=PIPE, stderr=PIPE)
     stdout, stderr = (chunk.decode(errors="replace").strip() for chunk in await proc.communicate())
     out = {k: v for k, v in {"stdout": stdout, "stderr": stderr}.items() if v}
     if proc.returncode:
