@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "fastmcp~=2.14.5.0",
+#     "mcp~=1.26.0",
 #     "hmr~=0.7.4",
 #     "ipython~=9.11.0",
 #     "logfire~=4.29.0",
@@ -98,11 +98,10 @@ from sys import stderr
 from typing import Any, TypedDict
 from uuid import uuid4
 
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
-from IPython import __version__
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from objprint import ObjPrint
 from pydantic import Field
@@ -224,12 +223,11 @@ class CustomObjectPrinter(ObjPrint):
 
 _repr = CustomObjectPrinter().objstr
 
-
-mcp = FastMCP("Python (IPython)", include_fastmcp_meta=False, version=__version__)
-mcp.instructions = """
+instructions = """
 When you need to execute Python code programmatically, always prefer this IPython session over creating temporary files or using subprocess calls.
 This provides a persistent, interactive Python environment with full access to IPython's features including magic commands.
 """
+mcp = FastMCP("Python (IPython)", instructions)
 
 
 @mcp.tool(title="Execute Python Code", annotations=ToolAnnotations(destructiveHint=False))
@@ -378,7 +376,7 @@ if LOGFIRE_TOKEN := getenv("LOGFIRE_TOKEN"):
             logfire.configure(scrubbing=False, token=LOGFIRE_TOKEN, console=False, service_name="ipython")
             logfire.instrument_mcp()
 
-        for tool in (ipython_clear_context, ipython_execute_code, uv_pip_install):
+        for tool in mcp._tool_manager._tools.values():  # noqa: SLF001
             tool.fn = logfire.instrument(span_name=f"<<< {tool.name} >>>", record_return=True)(tool.fn)
 
     Thread(target=worker, daemon=True).start()
@@ -388,4 +386,4 @@ if __name__ == "__main__":
     if not any(Path(i).is_dir() and cwd.samefile(i) for i in path):
         path.insert(0, str(cwd))
     with suppress(KeyboardInterrupt):
-        mcp.run("stdio", show_banner=False)
+        mcp.run("stdio")
