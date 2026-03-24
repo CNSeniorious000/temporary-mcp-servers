@@ -87,7 +87,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
             path.insert(0, str(site_packages))
             addsitedir(str(site_packages))
 
-from asyncio.subprocess import PIPE, create_subprocess_exec
+from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
 from inspect import isclass
@@ -324,7 +324,7 @@ async def uv_pip_install(args: list[str] = Field(default_factory=list, descripti
 
     from uv import find_uv_bin
 
-    proc = await create_subprocess_exec(f"{find_uv_bin()} pip install {' '.join(args)}", stdout=PIPE, stderr=PIPE)
+    proc = await create_subprocess_shell(f"{find_uv_bin()} pip install {' '.join(args)}", stdout=PIPE, stderr=PIPE)
     stdout, stderr = (chunk.decode(errors="replace").strip() for chunk in await proc.communicate())
     out = {k: v for k, v in {"stdout": stdout, "stderr": stderr}.items() if v}
     if proc.returncode:
