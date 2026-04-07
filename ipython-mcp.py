@@ -87,6 +87,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
             path.insert(0, str(site_packages))
             addsitedir(str(site_packages))
 
+from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from functools import wraps
@@ -234,6 +235,7 @@ mcp = FastMCP("Python (IPython)", instructions)
 async def ipython_execute_code(
     code: str = Field(description="Python code to execute"),
     session_id: str | None = Field(None, description="Session ID returned by a previous call; leave unset on the very first call or when no ID was returned"),
+    timeout_seconds: float | None = Field(5, description="Maximum seconds to wait; only async code is interruptible, so prefer top-level await over sync APIs. Set to null to disable timeout"),
 ):
     """
     Execute Python code in an IPython session with persistent state across calls.
@@ -273,7 +275,8 @@ async def ipython_execute_code(
     else:
         session = sessions[session_id]
 
-    result = await session.run_cell_async(code)
+    async with async_timeout(timeout_seconds):
+        result = await session.run_cell_async(code)
 
     if not result["success"]:
         assert result["error"] is not None
