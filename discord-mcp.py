@@ -8,7 +8,7 @@
 #     "logfire[aiohttp-client]~=4.31.0",
 #     "mcp~=1.27.0",
 #     "saneyaml~=0.6.1",
-#     "stamina~=25.2.0",
+#     "stamina~=26.1.0",
 # ]
 # ///
 
