@@ -19,7 +19,7 @@ A Model Context Protocol server for programmatic IPython session management.
 from os import environ, getenv
 from pathlib import Path
 from site import addsitedir, getsitepackages
-from sys import executable, path, platform
+from sys import executable, path, platform, version_info
 
 if parent := getenv("PARENT"):
     cwd = Path.cwd()
@@ -27,6 +27,9 @@ if parent := getenv("PARENT"):
         addsitedir(i)
     if project_site_packages := getenv("PROJECT_SITE_PACKAGES"):
         path.insert(0, project_site_packages)
+        venv_root = Path(project_site_packages).parents[1 if platform == "win32" else 2]
+    else:
+        venv_root = None
 
 elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_to(Path.cwd()):
     from subprocess import run
@@ -86,6 +89,9 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         else:
             path.insert(0, str(site_packages))
             addsitedir(str(site_packages))
+
+else:
+    venv_root = None
 
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
@@ -224,11 +230,16 @@ class CustomObjectPrinter(ObjPrint):
 
 _repr = CustomObjectPrinter().objstr
 
-instructions = """
+instructions = f"""
 When you need to execute Python code programmatically, always prefer this IPython session over creating temporary files or using subprocess calls.
 This provides a persistent, interactive Python environment with full access to IPython's features including magic commands.
+
+Python 3.{version_info.minor} {f"in an **ephemeral** venv _inheriting from_ {venv_root}" if venv_root else f"at {executable}"}
+{"Packages from the inherited project venv are already importable — no need to reinstall them.\n" if venv_root else ""}Installs land in the ephemeral venv only and won't pollute {"the project venv (or any other)" if venv_root else "any other venv"}.
 """
 mcp = FastMCP("Python (IPython)", instructions)
+
+print(instructions)
 
 
 @mcp.tool(title="Execute Python Code", annotations=ToolAnnotations(destructiveHint=False))
