@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin~=1.0"]
+build-backend = "maturin"
+
+[project]
+name = "webview-mcp"
+version = "0.1.0"
+description = "Webview-backed MCP server for fetching+extracting URLs as Markdown"
+requires-python = ">=3.8"
+
+[tool.maturin]
+bindings = "bin"
+strip = true

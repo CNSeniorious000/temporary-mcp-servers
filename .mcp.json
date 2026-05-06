@@ -20,15 +20,7 @@
       "command": "uv",
       "args": [
         "run",
-        "webview-mcp.py"
-      ]
-    },
-    "xiaoyuzhoufm": {
-      "command": "uv",
-      "args": [
-        "run",
-        "mcp-hmr",
-        "xiaoyuzhoufm-mcp.py:app"
+        "webview-mcp"
       ]
     }
   }

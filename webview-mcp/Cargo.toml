@@ -1,0 +1,50 @@
+[package]
+name = "webview-mcp"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "webview-mcp"
+path = "src/main.rs"
+
+[dependencies]
+rmcp = { version = "1.6", features = ["server", "macros", "transport-io", "schemars"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
+
+wry = "0.55"
+tao = "0.35"
+dom_smoothie = "0.17"
+
+tracing = "0.1"
+logfire = "0.9"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[lints.rust]
+unsafe_code = "deny"
+let_underscore_drop = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+# stdio MCP 协议安全：println! 会污染 JSON-RPC
+print_stdout = "warn"
+print_stderr = "warn"
+
+# 噪音项
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+cast_precision_loss = "allow"           # 进度条 usize -> f64，精度无所谓
+collection_is_never_read = "allow"      # in_flight 持有 window/webview 防 drop，是副作用而非读取
+
+# 强制
+unwrap_used = "warn"
+dbg_macro = "warn"
+todo = "warn"

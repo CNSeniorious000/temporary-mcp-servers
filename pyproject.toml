@@ -16,6 +16,7 @@ dependencies = [
     "saneyaml~=0.6.1",
     "stamina~=26.1.0",
     "uv~=0.7",
+    "webview-mcp",
 ]
 
 [tool.pyright]
@@ -47,3 +48,11 @@ extend-select = [
     "SLF",   # flake8-self
     "ASYNC", # flake8-async
 ]
+
+[tool.uv.workspace]
+members = [
+    "webview-mcp",
+]
+
+[tool.uv.sources]
+webview-mcp = { workspace = true }
