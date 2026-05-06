@@ -17,10 +17,12 @@
       ]
     },
     "web": {
-      "command": "uv",
+      "command": "cargo",
       "args": [
         "run",
-        "webview-mcp"
+        "--quiet",
+        "--manifest-path",
+        "webview-mcp/Cargo.toml"
       ]
     }
   }
