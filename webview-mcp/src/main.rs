@@ -247,7 +247,13 @@ fn main() {
 
     std::thread::spawn(move || {
         dotenvy::dotenv().ok();
-        let logfire = std::env::var_os("LOGFIRE_TOKEN").and_then(|_| logfire::configure().with_service_name(env!("CARGO_PKG_NAME")).finish().ok());
+        let logfire = std::env::var_os("LOGFIRE_TOKEN").and_then(|_| {
+            logfire::configure()
+                .with_service_name(env!("CARGO_PKG_NAME"))
+                .with_default_level_filter(tracing::level_filters::LevelFilter::INFO)
+                .finish()
+                .ok()
+        });
         let rt = RuntimeBuilder::new_multi_thread().enable_all().build().expect("failed to build tokio runtime");
         rt.block_on(async {
             let Ok(service) = WebviewServer::new(proxy).serve(stdio()).await else { return };
