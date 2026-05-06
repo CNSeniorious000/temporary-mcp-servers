@@ -14,6 +14,14 @@ Features: fetch and parse URLs concurrently, convert HTML to markdown.
 uv run https://raw.githubusercontent.com/CNSeniorious000/temporary-mcp-servers/HEAD/webview-mcp.py
 ```
 
+### Webview MCP Server (Rust)
+
+Same idea as above, rewritten in Rust on top of `tao` + `wry` + `rmcp`. Distributed as a maturin-built binary wheel.
+
+```sh
+uvx git+https://github.com/CNSeniorious000/temporary-mcp-servers#subdirectory=webview-mcp
+```
+
 ### Discord MCP Server
 
 Access Discord API via MCP. Requires `DISCORD_TOKEN` environment variable.
