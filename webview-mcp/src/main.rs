@@ -236,7 +236,13 @@ fn build_webview(b: WebViewBuilder<'_>, w: &Window) -> wry::Result<WebView> {
 }
 
 fn main() {
-    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[allow(unused_mut)]
+    let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[cfg(target_os = "macos")]
+    {
+        use tao::platform::macos::EventLoopExtMacOS;
+        event_loop.set_dock_visibility(false);
+    }
     let proxy = event_loop.create_proxy();
 
     std::thread::spawn(move || {
