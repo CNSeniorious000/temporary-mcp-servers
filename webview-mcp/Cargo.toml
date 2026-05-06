@@ -19,6 +19,7 @@ dom_smoothie = "0.17"
 
 tracing = "0.1"
 logfire = "0.9"
+dotenvy = "0.15"
 
 [profile.release]
 lto = "thin"
