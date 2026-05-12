@@ -325,7 +325,7 @@ async def ipython_execute_code(
     return _as_xml(out)
 
 
-@mcp.tool(title="pip_install", annotations=ToolAnnotations(destructiveHint=False))
+@mcp.tool(title="uv pip install", annotations=ToolAnnotations(destructiveHint=False))
 async def uv_pip_install(args: list[str] = Field(default_factory=list, description="Arguments passed after `uv pip install`")):  # noqa: B008
     """
     Install PyPI packages into this temporary execution environment using `uv pip install`.
@@ -342,6 +342,8 @@ async def uv_pip_install(args: list[str] = Field(default_factory=list, descripti
     if proc.returncode:
         out["exit_code"] = str(proc.returncode)
         raise ToolError(_as_xml(out))
+    if venv_root:
+        out["note"] = f"New packages can only be accessed in this MCP server and won't affect the project environment ({venv_root})."
     return _as_xml(out) or "[[ uv pip install successful, stdout/stderr empty ]]"
 
 
