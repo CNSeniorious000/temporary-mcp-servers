@@ -239,8 +239,6 @@ Python 3.{version_info.minor} {f"in an **ephemeral** venv _inheriting from_ {ven
 """
 mcp = FastMCP("Python (IPython)", instructions)
 
-print(instructions)
-
 
 @mcp.tool(title="Execute Python Code", annotations=ToolAnnotations(destructiveHint=False))
 async def ipython_execute_code(
