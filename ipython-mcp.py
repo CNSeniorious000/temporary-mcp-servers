@@ -248,6 +248,7 @@ async def ipython_execute_code(
 ):
     """
     Execute Python code in an IPython session with persistent state across calls.
+    It's also common practice to write to a file first then %run it. All global state (variables, imports, etc.) will persist across calls within the same session.
 
     Features:
     - Variables persist between calls for incremental development
@@ -285,7 +286,7 @@ async def ipython_execute_code(
         session = sessions[session_id]
 
     async with async_timeout(timeout_seconds):
-        result = await session.run_cell_async(code)
+        result = await session.run_cell_async(code if isinstance(code, str) else f"%run {code}")
 
     if not result["success"]:
         assert result["error"] is not None
