@@ -96,12 +96,14 @@ else:
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
+from contextvars import ContextVar
+from dis import get_instructions
 from functools import wraps
 from inspect import isclass
 from io import StringIO
 from operator import call
 from re import IGNORECASE, compile
-from sys import stderr
+from sys import _getframe, stderr
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -123,13 +125,51 @@ class ExecutionResult(TypedDict):
     stderr: str
     error: str | None
     result: Any
+    note: str | None
+
+
+_redundant_imports: ContextVar[list[str] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
+
+
+def _format_import_hint(keys: list[str]) -> str | None:
+    if not (keys := list(dict.fromkeys(keys))):  # dedupe, preserve order
+        return None
+    quoted = [f"`{k}`" for k in keys]
+    if len(quoted) == 1:
+        return f"{quoted[0]} has already been imported in this session — no need to re-import it."
+    return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
+
+
+class HintingNamespace(dict):
+    """Records names that an `import` rebinds to the *same* object — typically an LLM that forgot
+    earlier session state. Names land in the per-cell `_redundant_imports` ContextVar so concurrent
+    `run_cell_async` calls on the same session don't bleed into each other. cpython#121306: top-level
+    `STORE_NAME` routes through `__setitem__` for dict subclasses (function-body `STORE_GLOBAL`
+    doesn't — function-local imports don't pollute the session ns anyway, so silently skipping there
+    is fine)."""
+
+    def __setitem__(self, key, value):
+        if key in self and self[key] is value and (redundant := _redundant_imports.get()) is not None:
+            # `PyObject_SetItem` is C → no Python frame between us and the cell, so `_getframe(1)`
+            # IS the cell. Match IMPORT_NAME / IMPORT_FROM → STORE_NAME at f_lasti to skip
+            # coincidental rebinds (`x = x`, `os = sys.modules['os']`). `from m import *` uses
+            # CALL_INTRINSIC_1 — naturally bypassed, no 200-hint storm on repeated star imports.
+            caller = _getframe(1)
+            prev = None
+            for instr in get_instructions(caller.f_code):
+                if instr.offset == caller.f_lasti:
+                    if instr.opname == "STORE_NAME" and prev is not None and prev.opname in ("IMPORT_NAME", "IMPORT_FROM"):
+                        redundant.append(key)
+                    break
+                prev = instr
+        super().__setitem__(key, value)
 
 
 class IPythonSession:
     """Manages an isolated IPython session"""
 
     def __init__(self):
-        self.shell: InteractiveShell = InteractiveShell()
+        self.shell: InteractiveShell = InteractiveShell(user_ns=HintingNamespace())
 
         showtraceback = self.shell.showtraceback
 
@@ -166,8 +206,13 @@ class IPythonSession:
 
     async def run_cell_async(self, code: str) -> ExecutionResult:
         """Execute code asynchronously in the IPython session"""
-        with self._capture_output() as outputs:
-            result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
+        redundant: list[str] = []
+        token = _redundant_imports.set(redundant)
+        try:
+            with self._capture_output() as outputs:
+                result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
+        finally:
+            _redundant_imports.reset(token)
 
         stdout, stderr = outputs
 
@@ -179,6 +224,7 @@ class IPythonSession:
             "stderr": stderr,
             "error": self.format_exc() if exc else None,
             "result": result.result,
+            "note": _format_import_hint(redundant),
         }
 
 
@@ -290,7 +336,7 @@ async def ipython_execute_code(
 
     if not result["success"]:
         assert result["error"] is not None
-        if not result["stdout"].strip() and not result["stderr"].strip() and not new_session:
+        if not result["stdout"].strip() and not result["stderr"].strip() and not new_session and not result["note"]:
             raise ToolError(result["error"])
         out = {"traceback": result["error"]}
         if new_session:
@@ -299,11 +345,13 @@ async def ipython_execute_code(
             out["stdout"] = stdout
         if stderr := result["stderr"].strip():
             out["stderr"] = stderr
+        if note := result["note"]:
+            out["note"] = note
         raise ToolError(_as_xml(out))
 
     out = {}
 
-    if not result["stdout"].strip() and not result["stderr"].strip():
+    if not result["stdout"].strip() and not result["stderr"].strip() and not result["note"]:
         if new_session:
             if session_note:
                 return f"[[ execution successful, stdout/stderr empty, {session_note} ]]"
@@ -320,6 +368,8 @@ async def ipython_execute_code(
         out["stderr"] = stderr
     if result["result"] is not None:
         out["return"] = _repr(result["result"])
+    if note := result["note"]:
+        out["note"] = note
 
     return _as_xml(out)
 
