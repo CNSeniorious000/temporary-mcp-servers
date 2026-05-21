@@ -28,7 +28,7 @@ use tokio::{
     task::spawn_blocking,
     time::timeout,
 };
-use wry::{http::Request as HttpRequest, WebView, WebViewBuilder};
+use wry::{PageLoadEvent, WebView, WebViewBuilder};
 
 #[derive(Deserialize, Debug)]
 struct Fetched {
@@ -205,23 +205,51 @@ fn format_article(orig_url: &str, fetched: Fetched) -> String {
     format!("---\n{head}\n---\n\n{body}")
 }
 
-const INIT_SCRIPT: &str = r"
-window.__webviewMcpSync = () => {
-    try {
-        const nav = performance.getEntriesByType('navigation')[0];
-        const status = nav && typeof nav.responseStatus === 'number' && nav.responseStatus > 0
-            ? nav.responseStatus
-            : null;
-        window.ipc.postMessage(JSON.stringify({
-            url: location.href,
-            html: document.documentElement.outerHTML,
-            status,
-        }));
-    } catch (_) {}
-};
-addEventListener('load', () => setTimeout(window.__webviewMcpSync, 0));
-";
-const FORCE_SYNC_SCRIPT: &str = "window.__webviewMcpSync && window.__webviewMcpSync();";
+const SNAPSHOT_SCRIPT: &str = "[location.href, document.documentElement.outerHTML]";
+
+type TxCell = Arc<Mutex<Option<oneshot::Sender<Fetched>>>>;
+
+#[cfg(target_os = "macos")]
+fn snapshot(webview: &WebView, tx_cell: &TxCell) {
+    use objc2::{rc::Retained, runtime::AnyObject, MainThreadMarker};
+    use objc2_foundation::{NSArray, NSError, NSString};
+    use objc2_web_kit::WKContentWorld;
+    use wry::WebViewExtMacOS;
+
+    // run in WKContentWorld::defaultClientWorld — WebKit's user-script isolated world,
+    // not subject to page CSP (e.g. raw.githubusercontent.com's `sandbox` directive)
+    let wk = webview.webview();
+    let tx_cell = tx_cell.clone();
+    let handler = block2::RcBlock::new(move |val: *mut AnyObject, _err: *mut NSError| {
+        let Some(tx) = tx_cell.lock().expect("ipc tx mutex poisoned").take() else { return };
+        // SAFETY: WKWebView fires this completion handler on the main thread; val is either null or a retained NSArray<NSString>
+        #[allow(unsafe_code)]
+        let arr = unsafe { Retained::retain(val) }.and_then(|v| v.downcast::<NSArray>().ok());
+        let read = |a: &NSArray, i| a.objectAtIndex(i).downcast::<NSString>().map(|s| s.to_string()).unwrap_or_default();
+        let (final_url, html) = arr.filter(|a| a.count() >= 2).map(|a| (read(&a, 0), read(&a, 1))).unwrap_or_default();
+        tx.send(Fetched { final_url, html, status: None }).ok();
+    });
+    #[allow(unsafe_code)]
+    unsafe {
+        let mtm = MainThreadMarker::new().expect("snapshot must run on the main thread");
+        let world = WKContentWorld::defaultClientWorld(mtm);
+        let js = NSString::from_str(SNAPSHOT_SCRIPT);
+        wk.evaluateJavaScript_inFrame_inContentWorld_completionHandler(&js, None, &world, Some(&handler));
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn snapshot(webview: &WebView, tx_cell: &TxCell) {
+    let tx_cell = tx_cell.clone();
+    webview
+        .evaluate_script_with_callback(SNAPSHOT_SCRIPT, move |raw| {
+            let Some(tx) = tx_cell.lock().expect("ipc tx mutex poisoned").take() else { return };
+            // on windows/linux wry stringifies the JS return value to JSON text before invoking us
+            let (final_url, html) = serde_json::from_str::<(String, String)>(&raw).unwrap_or_default();
+            tx.send(Fetched { final_url, html, status: None }).ok();
+        })
+        .ok();
+}
 
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android"))]
 fn build_webview(b: WebViewBuilder<'_>, w: &Window) -> wry::Result<WebView> {
@@ -270,6 +298,7 @@ fn main() {
 
     let mut in_flight = HashMap::new();
     let visible = std::env::var_os("WEBVIEW_VISIBLE").is_some();
+    let loop_proxy = event_loop.create_proxy();
 
     event_loop.run(move |event, target, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -282,13 +311,12 @@ fn main() {
                         return;
                     }
                 };
-                let tx_cell = Arc::new(Mutex::new(Some(tx)));
-                let tx_for_ipc = tx_cell.clone();
-                let url_for_ipc = url.clone();
-                let builder = WebViewBuilder::new().with_url(&url).with_initialization_script(INIT_SCRIPT).with_ipc_handler(move |req: HttpRequest<String>| {
-                    let Some(tx) = tx_for_ipc.lock().expect("ipc tx mutex poisoned").take() else { return };
-                    let fetched = serde_json::from_str::<Fetched>(req.body()).unwrap_or_else(|_| Fetched { final_url: url_for_ipc.clone(), html: String::new(), status: None });
-                    tx.send(fetched).ok();
+                let tx_cell: TxCell = Arc::new(Mutex::new(Some(tx)));
+                let proxy_for_load = loop_proxy.clone();
+                let builder = WebViewBuilder::new().with_url(&url).with_on_page_load_handler(move |evt, _url| {
+                    if matches!(evt, PageLoadEvent::Finished) {
+                        proxy_for_load.send_event(UserEvent::ForceSync { id }).ok();
+                    }
                 });
                 let webview = match build_webview(builder, &window) {
                     Ok(w) => w,
@@ -300,11 +328,11 @@ fn main() {
                         return;
                     }
                 };
-                in_flight.insert(id, (window, webview));
+                in_flight.insert(id, (window, webview, tx_cell));
             }
             Event::UserEvent(UserEvent::ForceSync { id }) => {
-                if let Some((_, webview)) = in_flight.get(&id) {
-                    webview.evaluate_script(FORCE_SYNC_SCRIPT).ok();
+                if let Some((_, webview, tx_cell)) = in_flight.get(&id) {
+                    snapshot(webview, tx_cell);
                 }
             }
             Event::UserEvent(UserEvent::Cleanup { id }) => {
