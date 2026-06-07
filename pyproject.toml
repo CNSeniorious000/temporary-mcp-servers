@@ -3,7 +3,7 @@ name = "temporary-mcp-servers"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "aiohttp~=3.13.1",
+    "aiohttp~=3.14.0",
     "dotenv-pth~=1.0",
     "fake-useragent~=2.2.0",
     "ipython~=9.13.0",

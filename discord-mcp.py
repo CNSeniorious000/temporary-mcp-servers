@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "aiohttp~=3.13.1",
+#     "aiohttp~=3.14.0",
 #     "dotenv-pth",
 #     "fake-useragent~=2.2.0",
 #     "logfire[aiohttp-client]~=4.33.0",
