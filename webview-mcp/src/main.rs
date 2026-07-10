@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use dom_smoothie::{Config, Readability, TextMode};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, Content, Implementation, ProgressNotificationParam, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ContentBlock, Implementation, ProgressNotificationParam, ServerCapabilities, ServerInfo},
     schemars::JsonSchema,
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -148,7 +148,7 @@ impl WebviewServer {
         let mut contents = Vec::with_capacity(total);
         for h in handles {
             let text = h.await.unwrap_or_else(|e| format!("[[ task panicked: {e} ]]"));
-            contents.push(Content::text(text));
+            contents.push(ContentBlock::text(text));
         }
 
         if let Some(tok) = token {
