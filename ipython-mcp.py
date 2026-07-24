@@ -70,7 +70,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
         project_py_version = get_python_version(python_exe)
         current_py_version = get_python_version(executable)
 
-        minor_version = project_py_version.split("=", 1)[-1].split(".")[1]
+        minor_version = project_py_version.split("=", 1)[-1].split(".")[1].strip()  # pyvenv.cfg lines trail \n
         site_packages = venv_root / ("Lib/site-packages" if platform == "win32" else f"lib/python3.{minor_version}/site-packages")
         assert site_packages.is_dir(), site_packages
 
