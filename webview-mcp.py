@@ -3,7 +3,7 @@
 # requires-python = ">=3.12,<3.14"
 # dependencies = [
 #     "hmr~=0.7.6.2",
-#     "logfire~=4.37.0",
+#     "logfire~=4.39.0",
 #     "mcp~=1.28.1",
 #     "mm-read~=0.0.4.0",
 #     "python-readability~=1.0.0rc0",
