@@ -4,7 +4,7 @@
 # dependencies = [
 #     "mcp~=1.28.1",
 #     "hmr~=0.7.4",
-#     "ipython~=9.15.0",
+#     "ipython~=9.16.0",
 #     "logfire~=4.39.0",
 #     "objprint~=0.3.0",
 #     "uv~=0.7",
