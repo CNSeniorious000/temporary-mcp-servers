@@ -21,6 +21,9 @@ from pathlib import Path
 from site import addsitedir, getsitepackages
 from sys import executable, path, platform, version_info
 
+environ.setdefault("COLUMNS", "456")  # stdio server has no TTY, so get_terminal_size() falls back to a cramped 80x24 and wraps tracebacks/pretty far narrower than we render at
+environ.setdefault("LINES", "123")
+
 if parent := getenv("PARENT"):
     cwd = Path.cwd()
     for i in eval(parent):
