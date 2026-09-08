@@ -29,7 +29,7 @@ if parent := getenv("PARENT"):
     for i in eval(parent):
         addsitedir(i)
     if project_site_packages := getenv("PROJECT_SITE_PACKAGES"):
-        path.insert(0, project_site_packages)
+        addsitedir(project_site_packages)
         venv_root = Path(project_site_packages).parents[1 if platform == "win32" else 2]
     else:
         venv_root = None
@@ -90,7 +90,6 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
                 except KeyboardInterrupt:
                     exit(1)
         else:
-            path.insert(0, str(site_packages))
             addsitedir(str(site_packages))
 
 else:
