@@ -319,7 +319,7 @@ async def ipython_execute_code(
     %whos  # View variables in session
     %timeit [x**2 for x in range(1000)]  # Benchmark
     """
-    session_note = None
+    session_note = ""
     if new_session := session_id is None:
         session_id = str(uuid4())
         session = sessions[session_id] = IPythonSession()
@@ -336,13 +336,17 @@ async def ipython_execute_code(
     async with async_timeout(timeout_seconds):
         result = await session.run_cell_async(code if isinstance(code, str) else f"%run {code}")
 
+    if new_session:  # a made-up session_id already left a note here — keep it, and append how to reuse or free what we just created
+        session_note = f'{f"{session_note} " if session_note else ""}Pass session_id="{session_id}" next time to keep these variables and imports; omit session_id to start a fresh namespace instead. Free it with `ipython_clear_context(..., delete=True)` when done — batch that with your other tool calls so it costs no extra round trip.'
+
     if not result["success"]:
         assert result["error"] is not None
         if not result["stdout"].strip() and not result["stderr"].strip() and not new_session and not result["note"]:
             raise ToolError(result["error"])
         out = {"traceback": result["error"]}
         if new_session:
-            out["session_id"] = session_note or session_id
+            out["session_id"] = session_id
+            out["session"] = session_note
         if stdout := result["stdout"].strip():
             out["stdout"] = stdout
         if stderr := result["stderr"].strip():
@@ -355,15 +359,14 @@ async def ipython_execute_code(
 
     if not result["stdout"].strip() and not result["stderr"].strip() and not result["note"]:
         if new_session:
-            if session_note:
-                return f"[[ execution successful, stdout/stderr empty, {session_note} ]]"
-            return f"[[ execution successful, stdout/stderr empty, new IPython session created with ID: {session_id} ]]"
+            return f"[[ execution successful, stdout/stderr empty, {session_note} ]]"
         if result["result"] is None:
             return "[[ execution successful, stdout/stderr empty ]]"
         else:
             return _repr(result["result"])
     if new_session:
-        out["session_id"] = session_note or session_id
+        out["session_id"] = session_id
+        out["session"] = session_note
     if stdout := result["stdout"].strip():
         out["stdout"] = stdout
     if stderr := result["stderr"].strip():
