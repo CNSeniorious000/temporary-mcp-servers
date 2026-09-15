@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "mcp~=1.29.0",
+#     "mcp~=1.30.0",
 #     "hmr~=0.7.4",
 #     "ipython~=9.17.1",
 #     "logfire~=4.41.0",
