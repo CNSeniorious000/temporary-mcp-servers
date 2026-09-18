@@ -161,7 +161,16 @@ class HintingNamespace(dict):
             for instr in get_instructions(caller.f_code):
                 if instr.offset == caller.f_lasti:
                     if instr.opname == "STORE_NAME" and prev is not None and prev.opname in ("IMPORT_NAME", "IMPORT_FROM"):
-                        redundant.append(key)
+                        # `import a.b` binds `a` but imports `a.b`, so the key never names what was
+                        # imported: after `import urllib.parse`, a *required* `import urllib.request`
+                        # rebinds the same `urllib` to the same object and would look redundant. The
+                        # submodule is only visible in IMPORT_NAME's argval, so skip dotted forms and
+                        # accept the miss on a literally repeated `import a.b` — a false "no need to
+                        # re-import" costs a working import, a missed hint costs one line of noise.
+                        # `import a.b as c` / `from a import b` store through IMPORT_FROM, where the
+                        # key IS the bound name, so they stay checked.
+                        if not (prev.opname == "IMPORT_NAME" and "." in prev.argval):
+                            redundant.append(key)
                     break
                 prev = instr
         super().__setitem__(key, value)
