@@ -131,6 +131,7 @@ class ExecutionResult(TypedDict):
 
 
 _redundant_imports: ContextVar[list[str] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
+_preexisting_names: ContextVar[frozenset[str] | None] = ContextVar("ipython_mcp_preexisting_names", default=None)
 
 
 def _format_import_hint(keys: list[str]) -> str | None:
@@ -151,7 +152,7 @@ class HintingNamespace(dict):
     is fine)."""
 
     def __setitem__(self, key, value):
-        if key in self and self[key] is value and (redundant := _redundant_imports.get()) is not None:
+        if key in self and self[key] is value and (redundant := _redundant_imports.get()) is not None and (preexisting := _preexisting_names.get()) is not None and key in preexisting:
             # `PyObject_SetItem` is C → no Python frame between us and the cell, so `_getframe(1)`
             # IS the cell. Match IMPORT_NAME / IMPORT_FROM → STORE_NAME at f_lasti to skip
             # coincidental rebinds (`x = x`, `os = sys.modules['os']`). `from m import *` uses
@@ -209,12 +210,15 @@ class IPythonSession:
     async def run_cell_async(self, code: str) -> ExecutionResult:
         """Execute code asynchronously in the IPython session"""
         redundant: list[str] = []
-        token = _redundant_imports.set(redundant)
+        preexisting = frozenset(self.shell.user_ns.keys())
+        token_redundant = _redundant_imports.set(redundant)
+        token_preexisting = _preexisting_names.set(preexisting)
         try:
             with self._capture_output() as outputs:
                 result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
         finally:
-            _redundant_imports.reset(token)
+            _redundant_imports.reset(token_redundant)
+            _preexisting_names.reset(token_preexisting)
 
         stdout, stderr = outputs
 
