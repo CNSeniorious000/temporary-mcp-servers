@@ -95,14 +95,17 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 else:
     venv_root = None
 
+from ast import Import, ImportFrom, walk
+from ast import parse as parse_ast
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from contextvars import ContextVar
 from dis import get_instructions
-from functools import wraps
+from functools import lru_cache, wraps
 from inspect import isclass
 from io import StringIO
+from linecache import getlines
 from operator import call
 from re import IGNORECASE, compile
 from sys import _getframe, stderr
@@ -142,38 +145,79 @@ def _format_import_hint(keys: list[str]) -> str | None:
     return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
 
 
+@lru_cache(maxsize=128)
+def _import_bindings(code, filename: str) -> dict[int, tuple[str, str, str]]:
+    """Map executed STORE_NAME offsets to exact (module, member, alias) signatures.
+
+    IPython caches transformed cell source in linecache. AST preserves explicit aliases
+    (even `import x as x`), which bytecode alone cannot distinguish. Missing source or
+    debug positions simply disables advisory hints for that code object. Filename is
+    a separate cache key because code equality ignores it, but aliases depend on source.
+    """
+    try:
+        tree = parse_ast("".join(getlines(filename)))
+    except (SyntaxError, ValueError):
+        return {}
+
+    statements = {}
+    for node in walk(tree):
+        if not isinstance(node, (Import, ImportFrom)):
+            continue
+        bindings = []
+        for name in node.names:
+            if name.name == "*":
+                continue
+            if isinstance(node, Import):
+                signature = (name.name, "", name.asname or "")
+                bound = name.asname or name.name.split(".")[0]
+            else:
+                signature = ("." * node.level + (node.module or ""), name.name, name.asname or "")
+                bound = name.asname or name.name
+            bindings.append((bound, signature))
+        statements[(node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)] = iter(bindings)
+
+    result = {}
+    for instruction in get_instructions(code):
+        if instruction.opname == "STORE_NAME" and (bindings := statements.get(instruction.positions)) is not None:
+            binding = next(bindings, None)
+            if binding is not None and binding[0] == instruction.argval:
+                result[instruction.offset] = binding[1]
+    return result
+
+
 class HintingNamespace(dict):
-    """Records names that an `import` rebinds to the *same* object — typically an LLM that forgot
-    earlier session state. Names land in the per-cell `_redundant_imports` ContextVar so concurrent
-    `run_cell_async` calls on the same session don't bleed into each other. cpython#121306: top-level
-    `STORE_NAME` routes through `__setitem__` for dict subclasses (function-body `STORE_GLOBAL`
-    doesn't — function-local imports don't pollute the session ns anyway, so silently skipping there
-    is fine)."""
+    """Track successful import signatures per session, not process-global module loads.
+
+    CPython's module-level STORE_NAME calls __setitem__; function-local and star imports
+    remain untracked. The per-cell ContextVar keeps concurrent callers' hints separate.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._import_signatures: set[tuple[str, str, str]] = set()
+
+    def clear(self):
+        super().clear()
+        self._import_signatures.clear()
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        # IPython reset deletes user keys individually instead of calling clear().
+        self._import_signatures = {signature for signature in self._import_signatures if (signature[2] or signature[1] or signature[0].split(".")[0]) != key}
 
     def __setitem__(self, key, value):
-        if key in self and self[key] is value and (redundant := _redundant_imports.get()) is not None:
-            # `PyObject_SetItem` is C → no Python frame between us and the cell, so `_getframe(1)`
-            # IS the cell. Match IMPORT_NAME / IMPORT_FROM → STORE_NAME at f_lasti to skip
-            # coincidental rebinds (`x = x`, `os = sys.modules['os']`). `from m import *` uses
-            # CALL_INTRINSIC_1 — naturally bypassed, no 200-hint storm on repeated star imports.
+        signature = None
+        if (redundant := _redundant_imports.get()) is not None:
             caller = _getframe(1)
-            prev = None
-            for instr in get_instructions(caller.f_code):
-                if instr.offset == caller.f_lasti:
-                    if instr.opname == "STORE_NAME" and prev is not None and prev.opname in ("IMPORT_NAME", "IMPORT_FROM"):
-                        # `import a.b` binds `a` but imports `a.b`, so the key never names what was
-                        # imported: after `import urllib.parse`, a *required* `import urllib.request`
-                        # rebinds the same `urllib` to the same object and would look redundant. The
-                        # submodule is only visible in IMPORT_NAME's argval, so skip dotted forms and
-                        # accept the miss on a literally repeated `import a.b` — a false "no need to
-                        # re-import" costs a working import, a missed hint costs one line of noise.
-                        # `import a.b as c` / `from a import b` store through IMPORT_FROM, where the
-                        # key IS the bound name, so they stay checked.
-                        if not (prev.opname == "IMPORT_NAME" and "." in prev.argval):
-                            redundant.append(key)
-                    break
-                prev = instr
+            if caller.f_locals is self:
+                signature = _import_bindings(caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
+            if signature in self._import_signatures and key in self and self[key] is value:
+                module, member, alias = signature
+                name = f"{module}.{member}" if member else module
+                redundant.append(f"{name} as {alias}" if alias else name)
         super().__setitem__(key, value)
+        if signature is not None:
+            self._import_signatures.add(signature)
 
 
 class IPythonSession:
