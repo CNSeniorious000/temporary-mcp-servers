@@ -98,6 +98,7 @@ else:
 from ast import Import, ImportFrom, parse, walk
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
+from collections.abc import Callable
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from contextvars import ContextVar
 from dis import get_instructions
@@ -108,6 +109,7 @@ from linecache import getlines
 from operator import call
 from re import IGNORECASE, compile
 from sys import _getframe, stderr
+from types import CodeType
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -150,7 +152,6 @@ def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
     return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
 
 
-@cache
 def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
     """Map executed STORE_NAME offsets to exact (module, member, alias) signatures.
 
@@ -190,6 +191,9 @@ def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
     return result
 
 
+_cell_import_bindings: ContextVar[list[Callable[[CodeType, str], dict[int, ImportSignature]]] | None] = ContextVar("ipython_mcp_cell_import_bindings", default=None)
+
+
 class HintingNamespace(dict):
     """Track successful import signatures per session, not process-global module loads.
 
@@ -214,8 +218,8 @@ class HintingNamespace(dict):
     def __setitem__(self, key, value):
         signature = None
         # PyObject_SetItem is C, so frame 1 is the cell body itself; a non-cell frame binds elsewhere.
-        if (redundant := _redundant_imports.get()) is not None and (caller := _getframe(1)).f_locals is self:
-            signature = _import_bindings(caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
+        if (redundant := _redundant_imports.get()) is not None and (caller := _getframe(1)).f_locals is self and (bindings := _cell_import_bindings.get()):
+            signature = bindings[0](caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
             if signature is not None and signature in self._import_signatures.get(key, ()) and key in self and self[key] is value:
                 redundant.append(signature)
         super().__setitem__(key, value)
@@ -266,10 +270,17 @@ class IPythonSession:
         """Execute code asynchronously in the IPython session"""
         redundant: list[ImportSignature] = []
         token = _redundant_imports.set(redundant)
+        bindings = cache(_import_bindings)
+        cell_bindings: list[Callable[[CodeType, str], dict[int, ImportSignature]]] = [bindings]
+        bindings_token = _cell_import_bindings.set(cell_bindings)
         try:
             with self._capture_output() as outputs:
                 result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
         finally:
+            # Copied async contexts must not repopulate a completed cell's cache.
+            cell_bindings.clear()
+            bindings.cache_clear()
+            _cell_import_bindings.reset(bindings_token)
             _redundant_imports.reset(token)
 
         stdout, stderr = outputs
