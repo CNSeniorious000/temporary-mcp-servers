@@ -132,20 +132,26 @@ class ExecutionResult(TypedDict):
     note: str | None
 
 
-_redundant_imports: ContextVar[list[str] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
+type ImportSignature = tuple[str, str, str]  # (module, member, explicit_alias)
+
+_redundant_imports: ContextVar[list[ImportSignature] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
 
 
-def _format_import_hint(keys: list[str]) -> str | None:
-    if not (keys := list(dict.fromkeys(keys))):  # dedupe, preserve order
+def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
+    names = []
+    for module, member, alias in signatures:
+        name = f"{module}.{member}" if member else module
+        names.append(f"{name} as {alias}" if alias else name)
+    if not (names := list(dict.fromkeys(names))):  # dedupe, preserve order
         return None
-    quoted = [f"`{k}`" for k in keys]
+    quoted = [f"`{n}`" for n in names]
     if len(quoted) == 1:
         return f"{quoted[0]} has already been imported in this session — no need to re-import it."
     return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
 
 
 @cache
-def _import_bindings(code, filename: str) -> dict[int, tuple[str, str, str]]:
+def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
     """Map executed STORE_NAME offsets to exact (module, member, alias) signatures.
 
     IPython caches transformed cell source in linecache. AST preserves explicit aliases
@@ -187,13 +193,14 @@ def _import_bindings(code, filename: str) -> dict[int, tuple[str, str, str]]:
 class HintingNamespace(dict):
     """Track successful import signatures per session, not process-global module loads.
 
-    CPython's module-level STORE_NAME calls __setitem__; function-local and star imports
-    remain untracked. The per-cell ContextVar keeps concurrent callers' hints separate.
+    CPython routes module-level STORE_NAME through __setitem__ for dict subclasses (cpython#121306);
+    function-local and star imports remain untracked. The per-cell ContextVar keeps concurrent
+    callers' hints separate.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._import_signatures: dict[str, set[tuple[str, str, str]]] = {}
+        self._import_signatures: dict[str, set[ImportSignature]] = {}
 
     def clear(self):
         super().clear()
@@ -206,14 +213,11 @@ class HintingNamespace(dict):
 
     def __setitem__(self, key, value):
         signature = None
-        if (redundant := _redundant_imports.get()) is not None:
-            caller = _getframe(1)
-            if caller.f_locals is self:
-                signature = _import_bindings(caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
+        # PyObject_SetItem is C, so frame 1 is the cell body itself; a non-cell frame binds elsewhere.
+        if (redundant := _redundant_imports.get()) is not None and (caller := _getframe(1)).f_locals is self:
+            signature = _import_bindings(caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
             if signature is not None and signature in self._import_signatures.get(key, ()) and key in self and self[key] is value:
-                module, member, alias = signature
-                name = f"{module}.{member}" if member else module
-                redundant.append(f"{name} as {alias}" if alias else name)
+                redundant.append(signature)
         super().__setitem__(key, value)
         if signature is not None:
             self._import_signatures.setdefault(key, set()).add(signature)
@@ -260,7 +264,7 @@ class IPythonSession:
 
     async def run_cell_async(self, code: str) -> ExecutionResult:
         """Execute code asynchronously in the IPython session"""
-        redundant: list[str] = []
+        redundant: list[ImportSignature] = []
         token = _redundant_imports.set(redundant)
         try:
             with self._capture_output() as outputs:
