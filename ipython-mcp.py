@@ -144,7 +144,7 @@ def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
     for module, member, alias in signatures:
         name = f"{module}.{member}" if member else module
         names.append(f"{name} as {alias}" if alias else name)
-    if not (names := list(dict.fromkeys(names))):  # dedupe, preserve order
+    if not (names := list(dict.fromkeys(names))):
         return None
     quoted = [f"`{n}`" for n in names]
     if len(quoted) == 1:
@@ -153,12 +153,9 @@ def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
 
 
 def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
-    """Map executed STORE_NAME offsets to exact (module, member, alias) signatures.
+    """Map STORE_NAME offsets to import signatures.
 
-    IPython caches transformed cell source in linecache. AST preserves explicit aliases
-    (even `import x as x`), which bytecode alone cannot distinguish. Missing source or
-    debug positions simply disables advisory hints for that code object. Filename is
-    a separate cache key because code equality ignores it, but aliases depend on source.
+    AST retains explicit aliases; filename disambiguates otherwise equal code objects.
     """
     try:
         tree = parse("".join(getlines(filename)))
@@ -195,12 +192,7 @@ _cell_import_bindings: ContextVar[list[Callable[[CodeType, str], dict[int, Impor
 
 
 class HintingNamespace(dict):
-    """Track successful import signatures per session, not process-global module loads.
-
-    CPython routes module-level STORE_NAME through __setitem__ for dict subclasses (cpython#121306);
-    function-local and star imports remain untracked. The per-cell ContextVar keeps concurrent
-    callers' hints separate.
-    """
+    """Track successful import signatures per session."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
