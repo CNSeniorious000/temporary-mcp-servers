@@ -102,7 +102,7 @@ from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from contextvars import ContextVar
 from dis import get_instructions
-from functools import lru_cache, wraps
+from functools import cache, wraps
 from inspect import isclass
 from io import StringIO
 from linecache import getlines
@@ -145,7 +145,7 @@ def _format_import_hint(keys: list[str]) -> str | None:
     return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
 
 
-@lru_cache(maxsize=128)
+@cache
 def _import_bindings(code, filename: str) -> dict[int, tuple[str, str, str]]:
     """Map executed STORE_NAME offsets to exact (module, member, alias) signatures.
 
