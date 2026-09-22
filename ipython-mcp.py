@@ -105,6 +105,7 @@ from dis import get_instructions
 from functools import cache, wraps
 from inspect import isclass
 from io import StringIO
+from itertools import cycle
 from linecache import getlines
 from operator import call
 from re import IGNORECASE, compile
@@ -142,7 +143,7 @@ _redundant_imports: ContextVar[list[ImportSignature] | None] = ContextVar("ipyth
 def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
     names = []
     for module, member, alias in signatures:
-        name = f"{module}.{member}" if member else module
+        name = f"{module}{'' if module.endswith('.') else '.'}{member}" if member else module
         names.append(f"{name} as {alias}" if alias else name)
     if not (names := list(dict.fromkeys(names))):
         return None
@@ -177,7 +178,7 @@ def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
                 signature = ("." * node.level + (node.module or ""), name.name, name.asname or "")
                 bound = name.asname or name.name
             bindings.append((bound, signature))
-        statements[(node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)] = iter(bindings)
+        statements[(node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)] = cycle(bindings)  # CPython duplicates finally blocks.
 
     result = {}
     for instruction in get_instructions(code):
