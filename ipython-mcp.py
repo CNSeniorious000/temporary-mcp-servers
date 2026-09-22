@@ -194,7 +194,7 @@ class HintingNamespace(dict):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._import_signatures: set[tuple[str, str, str]] = set()
+        self._import_signatures: dict[str, set[tuple[str, str, str]]] = {}
 
     def clear(self):
         super().clear()
@@ -203,7 +203,7 @@ class HintingNamespace(dict):
     def __delitem__(self, key):
         super().__delitem__(key)
         # IPython reset deletes user keys individually instead of calling clear().
-        self._import_signatures = {signature for signature in self._import_signatures if (signature[2] or signature[1] or signature[0].split(".")[0]) != key}
+        self._import_signatures.pop(key, None)
 
     def __setitem__(self, key, value):
         signature = None
@@ -211,13 +211,13 @@ class HintingNamespace(dict):
             caller = _getframe(1)
             if caller.f_locals is self:
                 signature = _import_bindings(caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
-            if signature in self._import_signatures and key in self and self[key] is value:
+            if signature is not None and signature in self._import_signatures.get(key, ()) and key in self and self[key] is value:
                 module, member, alias = signature
                 name = f"{module}.{member}" if member else module
                 redundant.append(f"{name} as {alias}" if alias else name)
         super().__setitem__(key, value)
         if signature is not None:
-            self._import_signatures.add(signature)
+            self._import_signatures.setdefault(key, set()).add(signature)
 
 
 class IPythonSession:
