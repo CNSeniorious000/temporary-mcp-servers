@@ -95,8 +95,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 else:
     venv_root = None
 
-from ast import Import, ImportFrom, walk
-from ast import parse as parse_ast
+from ast import Import, ImportFrom, parse, walk
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
@@ -155,7 +154,7 @@ def _import_bindings(code, filename: str) -> dict[int, tuple[str, str, str]]:
     a separate cache key because code equality ignores it, but aliases depend on source.
     """
     try:
-        tree = parse_ast("".join(getlines(filename)))
+        tree = parse("".join(getlines(filename)))
     except (SyntaxError, ValueError):
         return {}
 
