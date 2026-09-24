@@ -95,17 +95,22 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 else:
     venv_root = None
 
+from ast import Import, ImportFrom, parse, walk
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
+from collections.abc import Callable
 from contextlib import contextmanager, redirect_stderr, redirect_stdout, suppress
 from contextvars import ContextVar
 from dis import get_instructions
-from functools import wraps
+from functools import cache, wraps
 from inspect import isclass
 from io import StringIO
+from itertools import cycle
+from linecache import getlines
 from operator import call
 from re import IGNORECASE, compile
 from sys import _getframe, stderr
+from types import CodeType
 from typing import Any, TypedDict
 from uuid import uuid4
 
@@ -130,41 +135,89 @@ class ExecutionResult(TypedDict):
     note: str | None
 
 
-_redundant_imports: ContextVar[list[str] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
+type ImportSignature = tuple[str, str, str]  # (module, member, explicit_alias)
+
+_redundant_imports: ContextVar[list[ImportSignature] | None] = ContextVar("ipython_mcp_redundant_imports", default=None)
 
 
-def _format_import_hint(keys: list[str]) -> str | None:
-    if not (keys := list(dict.fromkeys(keys))):  # dedupe, preserve order
+def _format_import_hint(signatures: list[ImportSignature]) -> str | None:
+    names = []
+    for module, member, alias in signatures:
+        name = f"{module}{'' if module.endswith('.') else '.'}{member}" if member else module
+        names.append(f"{name} as {alias}" if alias else name)
+    if not (names := list(dict.fromkeys(names))):
         return None
-    quoted = [f"`{k}`" for k in keys]
+    quoted = [f"`{n}`" for n in names]
     if len(quoted) == 1:
         return f"{quoted[0]} has already been imported in this session — no need to re-import it."
     return f"{', '.join(quoted[:-1])} and {quoted[-1]} have already been imported in this session — no need to re-import them."
 
 
+def _import_bindings(code, filename: str) -> dict[int, ImportSignature]:
+    """Map STORE_NAME offsets to import signatures.
+
+    AST retains explicit aliases; filename disambiguates otherwise equal code objects.
+    """
+    try:
+        tree = parse("".join(getlines(filename)))
+    except (SyntaxError, ValueError):
+        return {}
+
+    statements = {}
+    for node in walk(tree):
+        if not isinstance(node, (Import, ImportFrom)):
+            continue
+        bindings = []
+        for name in node.names:
+            if name.name == "*":
+                continue
+            if isinstance(node, Import):
+                signature = (name.name, "", name.asname or "")
+                bound = name.asname or name.name.split(".")[0]
+            else:
+                signature = ("." * node.level + (node.module or ""), name.name, name.asname or "")
+                bound = name.asname or name.name
+            bindings.append((bound, signature))
+        statements[(node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)] = cycle(bindings)  # CPython duplicates finally blocks.
+
+    result = {}
+    for instruction in get_instructions(code):
+        if instruction.opname == "STORE_NAME" and (bindings := statements.get(instruction.positions)) is not None:
+            binding = next(bindings, None)
+            if binding is not None and binding[0] == instruction.argval:
+                result[instruction.offset] = binding[1]
+    return result
+
+
+_cell_import_bindings: ContextVar[list[Callable[[CodeType, str], dict[int, ImportSignature]]] | None] = ContextVar("ipython_mcp_cell_import_bindings", default=None)
+
+
 class HintingNamespace(dict):
-    """Records names that an `import` rebinds to the *same* object — typically an LLM that forgot
-    earlier session state. Names land in the per-cell `_redundant_imports` ContextVar so concurrent
-    `run_cell_async` calls on the same session don't bleed into each other. cpython#121306: top-level
-    `STORE_NAME` routes through `__setitem__` for dict subclasses (function-body `STORE_GLOBAL`
-    doesn't — function-local imports don't pollute the session ns anyway, so silently skipping there
-    is fine)."""
+    """Track successful import signatures per session."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._import_signatures: dict[str, set[ImportSignature]] = {}
+
+    def clear(self):
+        super().clear()
+        self._import_signatures.clear()
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        # IPython reset deletes user keys individually instead of calling clear().
+        self._import_signatures.pop(key, None)
 
     def __setitem__(self, key, value):
-        if key in self and self[key] is value and (redundant := _redundant_imports.get()) is not None:
-            # `PyObject_SetItem` is C → no Python frame between us and the cell, so `_getframe(1)`
-            # IS the cell. Match IMPORT_NAME / IMPORT_FROM → STORE_NAME at f_lasti to skip
-            # coincidental rebinds (`x = x`, `os = sys.modules['os']`). `from m import *` uses
-            # CALL_INTRINSIC_1 — naturally bypassed, no 200-hint storm on repeated star imports.
-            caller = _getframe(1)
-            prev = None
-            for instr in get_instructions(caller.f_code):
-                if instr.offset == caller.f_lasti:
-                    if instr.opname == "STORE_NAME" and prev is not None and prev.opname in ("IMPORT_NAME", "IMPORT_FROM"):
-                        redundant.append(key)
-                    break
-                prev = instr
+        signature = None
+        # PyObject_SetItem is C, so frame 1 is the cell body itself; a non-cell frame binds elsewhere.
+        if (redundant := _redundant_imports.get()) is not None and (caller := _getframe(1)).f_locals is self and (bindings := _cell_import_bindings.get()):
+            signature = bindings[0](caller.f_code, caller.f_code.co_filename).get(caller.f_lasti)
+            if signature is not None and signature in self._import_signatures.get(key, ()) and key in self and self[key] is value:
+                redundant.append(signature)
         super().__setitem__(key, value)
+        if signature is not None:
+            self._import_signatures.setdefault(key, set()).add(signature)
 
 
 class IPythonSession:
@@ -208,12 +261,19 @@ class IPythonSession:
 
     async def run_cell_async(self, code: str) -> ExecutionResult:
         """Execute code asynchronously in the IPython session"""
-        redundant: list[str] = []
+        redundant: list[ImportSignature] = []
         token = _redundant_imports.set(redundant)
+        bindings = cache(_import_bindings)
+        cell_bindings: list[Callable[[CodeType, str], dict[int, ImportSignature]]] = [bindings]
+        bindings_token = _cell_import_bindings.set(cell_bindings)
         try:
             with self._capture_output() as outputs:
                 result = await self.shell.run_cell_async(code, transformed_cell=self.shell.transform_cell(code), store_history=True)
         finally:
+            # Copied async contexts must not repopulate a completed cell's cache.
+            cell_bindings.clear()
+            bindings.cache_clear()
+            _cell_import_bindings.reset(bindings_token)
             _redundant_imports.reset(token)
 
         stdout, stderr = outputs
