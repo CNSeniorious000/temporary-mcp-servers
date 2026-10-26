@@ -95,6 +95,7 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
 else:
     venv_root = None
 
+import sys
 from ast import Import, ImportFrom, parse, walk
 from asyncio import timeout as async_timeout
 from asyncio.subprocess import PIPE, create_subprocess_shell
@@ -109,11 +110,13 @@ from itertools import cycle
 from linecache import getlines
 from operator import call
 from re import IGNORECASE, compile
-from sys import _getframe, stderr
-from types import CodeType
+from sys import _getframe, exc_info, stderr
+from traceback import print_exception
+from types import CodeType, TracebackType
 from typing import Any, TypedDict
 from uuid import uuid4
 
+from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
 from mcp.server.fastmcp import FastMCP
@@ -220,6 +223,50 @@ class HintingNamespace(dict):
             self._import_signatures.setdefault(key, set()).add(signature)
 
 
+# HMR preserves this namespace anchor even when it rebuilds functions with copied globals.
+_SERVER_GLOBALS = globals()
+_SERVER_FILENAME = _getframe().f_code.co_filename
+# Exception metadata must not invoke user-defined attribute hooks.
+_get_traceback = BaseException.__dict__["__traceback__"].__get__
+_get_cause = BaseException.__dict__["__cause__"].__get__
+_get_context = BaseException.__dict__["__context__"].__get__
+_get_exceptions = BaseExceptionGroup.__dict__["exceptions"].__get__
+
+
+@contextmanager
+def _user_tracebacks(exc: BaseException, root_tb: TracebackType | None):
+    """Temporarily filter server frames before any formatter or frame folding."""
+    pending: list[BaseException | None] = [exc]
+    originals = {}
+    has_groups = False
+    try:
+        while pending:
+            current = pending.pop()
+            if current is None or id(current) in originals:
+                continue
+            originals[id(current)] = current, _get_traceback(current)
+            pending.extend((_get_cause(current), _get_context(current)))
+            if isinstance(current, BaseExceptionGroup):
+                has_groups = True
+                pending.extend(_get_exceptions(current))
+            frames = []
+            tb = root_tb if current is exc else _get_traceback(current)
+            while tb is not None:
+                frames.append(tb)
+                tb = tb.tb_next
+            # Reuse unchanged suffixes and copy only affected prefixes, without relinking shared nodes.
+            for frame in reversed(frames):
+                if frame.tb_frame.f_code.co_filename == _SERVER_FILENAME and frame.tb_frame.f_globals.get("_SERVER_GLOBALS") is _SERVER_GLOBALS:
+                    continue
+                # -1 preserves CPython's lazy lookup for instructions without line information.
+                tb = frame if tb is frame.tb_next else TracebackType(tb, frame.tb_frame, frame.tb_lasti, -1 if frame.tb_lineno is None else frame.tb_lineno)
+            BaseException.with_traceback(current, tb)  # Bypass user-defined __setattr__ / with_traceback overrides.
+        yield has_groups and not isinstance(exc, SyntaxError) and type(exc) is not UsageError
+    finally:
+        for current, tb in originals.values():
+            BaseException.with_traceback(current, tb)
+
+
 class IPythonSession:
     """Manages an isolated IPython session"""
 
@@ -231,11 +278,36 @@ class IPythonSession:
         @wraps(showtraceback)
         def wrapper(*args, **kwargs):
             with redirect_stdout(stderr), redirect_stderr(stderr):
-                return showtraceback(*args, **kwargs)
+                return self._showtraceback(*args, **kwargs)
 
         self.shell.showtraceback = wrapper
 
         self.original_showtraceback = showtraceback
+
+    def _showtraceback(self, exc_tuple=None, *args, **kwargs):
+        etype, exc, tb = exc_tuple or exc_info()
+        if etype is None:
+            etype, exc, tb = (getattr(sys, name, None) for name in ("last_type", "last_value", "last_traceback"))
+        if exc is None:
+            return self.original_showtraceback(exc_tuple, *args, **kwargs)
+        with _user_tracebacks(exc, tb) as native_groups:
+            filtered_tb = _get_traceback(exc)
+            try:
+                exception_only = kwargs.get("exception_only", args[2] if len(args) > 2 else False)
+                if native_groups and not exception_only:
+                    # IPython's group fallback uses print_exc(), which ignores explicit exception tuples.
+                    sys.last_type, sys.last_value, sys.last_traceback, sys.last_exc = etype, exc, filtered_tb, exc
+                    print_exception(etype, exc, filtered_tb)
+                    if self.shell.call_pdb:
+                        self.shell.debugger(force=True)
+                else:
+                    return self.original_showtraceback((etype, exc, filtered_tb), *args, **kwargs)
+            finally:
+                if filtered_tb is not tb:
+                    if getattr(sys, "last_traceback", None) is filtered_tb and getattr(sys, "last_value", None) is exc:
+                        sys.last_traceback = tb
+                    if getattr(self.shell.InteractiveTB, "tb", None) is filtered_tb:
+                        self.shell.InteractiveTB.tb = tb
 
     @contextmanager
     def _capture_output(self):
@@ -247,14 +319,14 @@ class IPythonSession:
             finally:
                 results[:] = [stdout.getvalue(), stderr.getvalue()]
 
-    def format_exc(self):
+    def format_exc(self, exc: BaseException):
         """Format an exception using IPython's traceback formatter"""
 
         with self._capture_output() as outputs:
             original_color_settings = self.shell.colors
             try:
                 self.shell.colors = "nocolor"
-                self.original_showtraceback()
+                self._showtraceback((type(exc), exc, _get_traceback(exc)))
             finally:
                 self.shell.colors = original_color_settings
         return "\n".join(outputs).strip()
@@ -284,7 +356,7 @@ class IPythonSession:
             "success": result.success,
             "stdout": stdout,
             "stderr": stderr,
-            "error": self.format_exc() if exc else None,
+            "error": self.format_exc(exc) if exc else None,
             "result": result.result,
             "note": _format_import_hint(redundant),
         }
