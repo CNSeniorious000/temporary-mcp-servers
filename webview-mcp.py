@@ -102,7 +102,7 @@ def readability_parse(html: str, /, **options):
     if not _readability_use_fallback:
         try:
             return parse(html, **options)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             e1 = e
 
     # try our webview backend then
@@ -114,7 +114,7 @@ def readability_parse(html: str, /, **options):
         result = _eval_js(f"parse({html!r}, {dumps(to_camel_cases(options))})")
         _readability_use_fallback = True
         return Article(**to_snake_cases(result))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         e2 = e
 
     # both backends failed
@@ -127,7 +127,7 @@ del parse  # to avoid accidental usage
 class Response(TypedDict):
     url: list[str]  # original and redirected URLs
     body: str
-    status: int | None | Literal[False]
+    status: int | Literal[False] | None
 
 
 def _fetch(url: str, timeout: float):
@@ -138,7 +138,7 @@ def _fetch(url: str, timeout: float):
 
     fut.add_done_callback(lambda _: window.destroy())
 
-    status: int | None | Literal[False] = False
+    status: int | Literal[False] | None = False
 
     @window.expose
     def finish():

@@ -86,9 +86,9 @@ elif (venv_path := getenv("VIRTUAL_ENV")) and not Path(executable).is_relative_t
                 if str(site_packages) not in site_dirs:
                     new_env["PROJECT_SITE_PACKAGES"] = str(site_packages)
                 try:
-                    exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)
+                    exit(run([uv, "run", "-p", str(Path(temp_path, rel_path)), "--active", __file__], env=new_env).returncode)  # noqa: PLR1722, PLW1510
                 except KeyboardInterrupt:
-                    exit(1)
+                    exit(1)  # noqa: PLR1722
         else:
             addsitedir(str(site_packages))
 
