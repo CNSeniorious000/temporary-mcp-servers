@@ -118,7 +118,7 @@ from IPython.core.interactiveshell import InteractiveShell
 from IPython.lib.pretty import pretty
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from objprint import ObjPrint
 from pydantic import Field
 from reactivity.hmr import cache_across_reloads
@@ -323,6 +323,11 @@ def _as_xml(data: dict[str, str]):
     return "\n".join(f"<{k}>{_shorten(v)}</{k}>" for k, v in strings.items())
 
 
+def _as_xml_blocks(data: dict[str, str]):
+    strings = {k: text if "\n" not in (text := v.strip()) else f"\n{text}\n" for k, v in data.items()}
+    return CallToolResult(content=[TextContent(text=f"<{k}>{_shorten(v)}</{k}>", type="text") for k, v in strings.items()])
+
+
 class CustomObjectPrinter(ObjPrint):
     def _objstr(self, obj, memo, indent_level, cfg):
         cfg.attr_pattern = "(?!^__.*__$).*"
@@ -433,7 +438,7 @@ async def ipython_execute_code(
     if note := result["note"]:
         out["note"] = note
 
-    return _as_xml(out)
+    return _as_xml_blocks(out)
 
 
 @mcp.tool(title="uv pip install", annotations=ToolAnnotations(destructiveHint=False))
