@@ -384,9 +384,7 @@ async def send_channel_message(channel_id: str, content: str, ctx: Context):
         channel_display = f"#{channel_name!r} in {guild_name!r}" if guild_name else f"#{channel_name!r}" if channel_type == 0 else f"Channel {channel_name!r}"
 
         confirm_result = await ctx.elicit(
-            "Confirm sending message to {channel_display}?\n\nMessage content: {content}{ellipsis}".format(
-                channel_display=channel_display, content=content[:100], ellipsis="..." if len(content) > 100 else ""
-            ),
+            "Confirm sending message to {channel_display}?\n\nMessage content: {content}{ellipsis}".format(channel_display=channel_display, content=content[:100], ellipsis="..." if len(content) > 100 else ""),
             schema=type("", (BaseModel,), {}),
         )
 
